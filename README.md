@@ -1,4 +1,4 @@
-# 实时语音识别与翻译系统
+# Vox Engine Framework
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
@@ -59,7 +59,8 @@
 ### 1. 克隆或下载项目
 
 ```bash
-cd V0.3
+git clone https://github.com/monologue82/Vox-Engine-Framework.git
+cd Vox-Engine-Framework
 ```
 
 ### 2. 安装依赖
@@ -127,7 +128,7 @@ python app.py
 ## 📁 项目结构
 
 ```
-V0.3/
+Vox-Engine-Framework/
 ├── app.py                      # 主应用入口
 ├── api_engine_routes.py        # API路由
 ├── requirements.txt            # Python依赖
@@ -145,7 +146,7 @@ V0.3/
 │   └── vllm_models.json       # vLLM模型配置
 │
 ├── core/                       # 核心模块
-│   └── frp/                   # FRP相关
+│   └── llama.cpp/             # llama.cpp 相关（不包含在仓库中）
 │
 ├── engines/                    # 引擎模块
 │   ├── __init__.py
@@ -156,7 +157,7 @@ V0.3/
 │
 ├── models/                     # 模型目录
 │   ├── stt/                   # 语音识别模型
-│   │   └── vosk-model-cn-0.22/
+│   │   └── vosk-model-small-cn-0.22/
 │   └── tts/                   # 语音合成模型
 │       ├── g2p/               # 音素转换
 │       └── s2Gv2ProPlus/     # TTS模型
