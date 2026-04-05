@@ -123,7 +123,7 @@ python app.py
 
 ### 5. 访问界面
 
-打开浏览器，访问：`http://localhost:5000`
+打开浏览器，访问：`http://localhost:5001`
 
 ## 📁 项目结构
 
