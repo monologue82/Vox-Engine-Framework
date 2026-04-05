@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vox Engine - Loading</title>
+    <script>
+        // Immediately set theme before anything else
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+    <style>
+        /* Theme Variables */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #ffffff 0%, #f0fdfa 50%, #e0f7fa 100%);
+            --logo-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --particle-color: rgba(78, 205, 196, 0.3);
+            --text-primary: #2D3748;
+            --text-secondary: #718096;
+            --component-bg: rgba(255, 255, 255, 0.8);
+            --component-border: rgba(78, 205, 196, 0.2);
+            --component-shadow: rgba(0, 0, 0, 0.08);
+            --progress-bg: rgba(0, 0, 0, 0.08);
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --logo-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%);
+            --particle-color: rgba(78, 205, 196, 0.2);
+            --text-primary: #F7FAFC;
+            --text-secondary: #A0AEC0;
+            --component-bg: rgba(26, 32, 44, 0.8);
+            --component-border: rgba(78, 205, 196, 0.3);
+            --component-shadow: rgba(0, 0, 0, 0.3);
+            --progress-bg: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        /* Animated background particles */
+        .bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--particle-color);
+            border-radius: 50%;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Main container */
+        .loading-container {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 40px;
+        }
+
+        /* VoxEngine Logo */
+        .logo-container {
+            margin-bottom: 60px;
+            position: relative;
+        }
+
+        .logo-text {
+            font-size: 72px;
+            font-weight: 200;
+            letter-spacing: 12px;
+            background: var(--logo-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            display: inline-block;
+            transition: background 0.3s ease;
+        }
+
+        .logo-text::after {
+            content: 'Vox Engine';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(78, 205, 196, 0.8) 50%,
+                transparent 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Subtitle */
+        .subtitle {
+            font-size: 16px;
+            color: #4ECDC4;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            margin-top: 20px;
+            font-weight: 300;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.5s forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Loading components section */
+        .loading-section {
+            max-width: 500px;
+            width: 100%;
+            margin-top: 40px;
+        }
+
+        /* Component loading items */
+        .component-list {
+            margin-bottom: 40px;
+            text-align: left;
+        }
+
+        .component-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            opacity: 0;
+            transform: translateX(-20px);
+            animation: slideIn 0.5s ease-out forwards;
+        }
+
+        .component-item:nth-child(1) { animation-delay: 0.2s; }
+        .component-item:nth-child(2) { animation-delay: 0.4s; }
+        .component-item:nth-child(3) { animation-delay: 0.6s; }
+        .component-item:nth-child(4) { animation-delay: 0.8s; }
+        .component-item:nth-child(5) { animation-delay: 1.0s; }
+
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .component-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .component-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .component-name {
+            flex: 1;
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .component-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--component-border);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.loading {
+            background: #4ECDC4;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-dot.complete {
+            background: #4CAF50;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+
+        /* Progress bar container */
+        .progress-container {
+            position: relative;
+            height: 4px;
+            background: var(--progress-bg);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4ECDC4 0%, #7EE8D8 50%, #4ECDC4 100%);
+            background-size: 200% 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            position: relative;
+            animation: shimmer-bar 2s infinite linear;
+        }
+
+        @keyframes shimmer-bar {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20px;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8));
+            animation: glow 1.5s infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* Progress text */
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .progress-percentage {
+            font-weight: 600;
+            color: var(--primary-color, #4ECDC4);
+        }
+
+        /* Version tag */
+        .version-tag {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+            opacity: 0.7;
+        }
+
+        /* Smooth page transition overlay - PowerPoint style */
+        .page-transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+        }
+
+        .page-transition-overlay.active {
+            opacity: 1;
+        }
+
+        .transition-slide-left {
+            background: linear-gradient(90deg, #ffffff 0%, #f0fdfa 50%, #e0f7fa 100%);
+            transform: translateX(100%);
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .transition-slide-left.active {
+            transform: translateX(0);
+        }
+
+        .transition-fade {
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 50%, #e0f7fa 100%);
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        .transition-fade.active {
+            opacity: 1;
+        }
+
+        .transition-push {
+            background: var(--bg-gradient);
+            transform: translateY(100%);
+            transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .transition-push.active {
+            transform: translateY(0);
+        }
+
+        .transition-wipe {
+            background: linear-gradient(135deg, #4ECDC4 0%, #7EE8D8 50%, #4ECDC4 100%);
+            clip-path: circle(0% at 50% 50%);
+            transition: clip-path 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .transition-wipe.active {
+            clip-path: circle(150% at 50% 50%);
+        }
+
+        /* Loading content fade out */
+        .loading-container {
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+
+        .loading-container.fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <!-- Background particles -->
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- Main container -->
+    <div class="loading-container">
+        <!-- Logo -->
+        <div class="logo-container">
+            <h1 class="logo-text">Vox Engine</h1>
+            <p class="subtitle">Intelligent Speech Processing</p>
+        </div>
+
+        <!-- Loading section -->
+        <div class="loading-section">
+            <!-- Component list -->
+            <div class="component-list" id="componentList">
+                <div class="component-item" data-component="core">
+                    <div class="component-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4ECDC4" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <span class="component-name">Core Engine</span>
+                    <span class="component-status">
+                        <span class="status-dot loading"></span>
+                        <span class="status-text">Initializing...</span>
+                    </span>
+                </div>
+                <div class="component-item" data-component="speech">
+                    <div class="component-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4ECDC4" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </div>
+                    <span class="component-name">Speech Recognition</span>
+                    <span class="component-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Waiting...</span>
+                    </span>
+                </div>
+                <div class="component-item" data-component="translation">
+                    <div class="component-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4ECDC4" stroke-width="2">
+                            <path d="M5 8l6 6"/>
+                            <path d="M4 14l6-6 2-3"/>
+                            <path d="M2 5h12"/>
+                            <path d="M7 2h1"/>
+                            <path d="M22 22l-5-10-5 10"/>
+                            <path d="M14 18h6"/>
+                        </svg>
+                    </div>
+                    <span class="component-name">Translation Engine</span>
+                    <span class="component-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Waiting...</span>
+                    </span>
+                </div>
+                <div class="component-item" data-component="tts">
+                    <div class="component-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4ECDC4" stroke-width="2">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        </svg>
+                    </div>
+                    <span class="component-name">Text-to-Speech</span>
+                    <span class="component-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Waiting...</span>
+                    </span>
+                </div>
+                <div class="component-item" data-component="models">
+                    <div class="component-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4ECDC4" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                    </div>
+                    <span class="component-name">Model Manager</span>
+                    <span class="component-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Waiting...</span>
+                    </span>
+                </div>
+                <div class="component-item" data-component="llama_cpp">
+                    <div class="component-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4ECDC4" stroke-width="2">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </div>
+                    <span class="component-name">llama.cpp Engine</span>
+                    <span class="component-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Waiting...</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div class="progress-info">
+                <span id="loadingText">Initializing system...</span>
+                <span class="progress-percentage" id="progressPercentage">0%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version tag -->
+    <div class="version-tag">Vox Engine v0.3.0</div>
+
+    <!-- Page transition overlay for smooth navigation -->
+    <div class="page-transition-overlay transition-push" id="pageTransition"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Apply theme from localStorage or system preference
+        function applyTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        }
+        
+        // Apply theme immediately
+        applyTheme();
+
+        // Generate background particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 30; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 20 + 's';
+            particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Get selected components from localStorage
+        const selectedComponents = JSON.parse(localStorage.getItem('selected_components') || '{}');
+
+        // Initialize WebSocket connection
+        const socket = io();
+
+        let currentProgress = 0;
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const loadingText = document.getElementById('loadingText');
+
+        // WebSocket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            // Start loading process
+            socket.emit('start_loading', { components: selectedComponents });
+        });
+
+        socket.on('loading_progress', (data) => {
+            const { component, status, message, progress } = data;
+            
+            // Update component status
+            if (component) {
+                const element = document.querySelector(`[data-component="${component}"]`);
+                if (element) {
+                    const statusDot = element.querySelector('.status-dot');
+                    const statusText = element.querySelector('.status-text');
+                    
+                    if (status === 'loading') {
+                        statusDot.classList.add('loading');
+                        statusDot.classList.remove('complete');
+                        statusText.textContent = 'Loading...';
+                    } else if (status === 'completed') {
+                        statusDot.classList.remove('loading');
+                        statusDot.classList.add('complete');
+                        statusText.textContent = 'Ready';
+                    }
+                }
+            }
+            
+            // Update loading text
+            if (message) {
+                loadingText.textContent = message;
+            }
+            
+            // Update progress bar
+            if (progress !== undefined) {
+                currentProgress = progress;
+                progressBar.style.width = currentProgress + '%';
+                progressPercentage.textContent = Math.round(currentProgress) + '%';
+            }
+        });
+
+        socket.on('loading_complete', () => {
+            completeLoading();
+        });
+
+        socket.on('loading_error', (data) => {
+            const { error } = data;
+            loadingText.textContent = `Error: ${error}`;
+            console.error('Loading error:', error);
+        });
+
+        function completeLoading() {
+            loadingText.textContent = 'System ready!';
+            progressPercentage.textContent = '100%';
+
+            // Start smooth page transition immediately
+            setTimeout(() => {
+                startPageTransition();
+            }, 300);
+        }
+
+        function startPageTransition() {
+            const loadingContainer = document.querySelector('.loading-container');
+            const logoContainer = document.querySelector('.logo-container');
+            const particles = document.getElementById('particles');
+            const pageTransition = document.getElementById('pageTransition');
+
+            // Create a smooth overlay transition that matches the next page's entrance
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            
+            // Use the same gradient as the entrance overlay
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                overlay.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)';
+            } else {
+                overlay.style.background = 'linear-gradient(135deg, #ffffff 0%, #f0fdfa 50%, #e0f7fa 100%)';
+            }
+            
+            overlay.style.zIndex = '9999';
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 0.6s ease-in-out';
+            document.body.appendChild(overlay);
+
+            // Keep particles visible during transition
+            if (particles) {
+                particles.style.zIndex = '9998';
+            }
+
+            // Keep logo visible during transition
+            logoContainer.style.position = 'fixed';
+            logoContainer.style.top = '50%';
+            logoContainer.style.left = '50%';
+            logoContainer.style.transform = 'translate(-50%, -50%)';
+            logoContainer.style.zIndex = '9997';
+            logoContainer.style.transition = 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1)';
+
+            // Fade out all loading content
+            const allElements = loadingContainer.querySelectorAll('*');
+            allElements.forEach(el => {
+                if (el !== logoContainer) {
+                    el.style.opacity = '0';
+                    el.style.transition = 'opacity 0.4s ease';
+                }
+            });
+
+            // Scale logo and move to final position
+            setTimeout(() => {
+                logoContainer.style.transform = 'translate(-50%, -50%) scale(0.3)';
+                logoContainer.style.top = '20px';
+                logoContainer.style.left = '20px';
+                logoContainer.style.textAlign = 'left';
+                logoContainer.style.opacity = '0.8';
+            }, 100);
+
+            // Fade in overlay
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+            }, 300);
+
+            // Navigate to app page after overlay is fully visible
+            setTimeout(() => {
+                window.location.href = '/app';
+            }, 600);
+        }
+
+        // Handle connection error
+        socket.on('connect_error', (error) => {
+            console.error('WebSocket connection error:', error);
+            loadingText.textContent = 'Connection error. Please refresh the page.';
+            
+            // Add a refresh button after connection error
+            setTimeout(() => {
+                const statusElement = document.createElement('div');
+                statusElement.style.position = 'fixed';
+                statusElement.style.bottom = '50px';
+                statusElement.style.left = '50%';
+                statusElement.style.transform = 'translateX(-50%)';
+                statusElement.style.padding = '15px 30px';
+                statusElement.style.backgroundColor = 'var(--primary)';
+                statusElement.style.color = 'white';
+                statusElement.style.borderRadius = 'var(--radius)';
+                statusElement.style.cursor = 'pointer';
+                statusElement.style.fontWeight = '600';
+                statusElement.style.boxShadow = 'var(--shadow)';
+                statusElement.style.transition = 'var(--transition)';
+                statusElement.textContent = '刷新页面';
+                
+                statusElement.addEventListener('click', () => {
+                    window.location.reload();
+                });
+                
+                statusElement.addEventListener('mouseenter', () => {
+                    statusElement.style.backgroundColor = 'var(--primary-hover)';
+                    statusElement.style.transform = 'translateX(-50%) translateY(-2px)';
+                });
+                
+                statusElement.addEventListener('mouseleave', () => {
+                    statusElement.style.backgroundColor = 'var(--primary)';
+                    statusElement.style.transform = 'translateX(-50%)';
+                });
+                
+                document.body.appendChild(statusElement);
+            }, 2000);
+        });
+        
+        // Add connection timeout
+        setTimeout(() => {
+            if (!socket.connected) {
+                console.error('WebSocket connection timeout');
+                loadingText.textContent = 'Connection timeout. Please refresh the page.';
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vox Engine - Start</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Theme Variables */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #ffffff 0%, #f0fdfa 50%, #e0f7fa 100%);
+            --logo-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --particle-color: rgba(78, 205, 196, 0.3);
+            --text-primary: #2D3748;
+            --text-secondary: #718096;
+            --component-bg: rgba(255, 255, 255, 0.8);
+            --component-border: rgba(78, 205, 196, 0.2);
+            --component-shadow: rgba(0, 0, 0, 0.08);
+            --primary: #4ECDC4;
+            --primary-hover: #45b7aa;
+            --secondary: #45b7aa;
+            --secondary-hover: #3a9e92;
+            --success: #4CAF50;
+            --error: #f44336;
+            --warning: #ff9800;
+            --radius: 8px;
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --logo-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%);
+            --particle-color: rgba(78, 205, 196, 0.2);
+            --text-primary: #F7FAFC;
+            --text-secondary: #A0AEC0;
+            --component-bg: rgba(26, 32, 44, 0.8);
+            --component-border: rgba(78, 205, 196, 0.3);
+            --component-shadow: rgba(0, 0, 0, 0.3);
+            --primary: #68d3ca;
+            --primary-hover: #4ECDC4;
+            --secondary: #52b7aa;
+            --secondary-hover: #4ECDC4;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        /* Animated background particles */
+        .bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--particle-color);
+            border-radius: 50%;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Main container */
+        .start-container {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            animation: fadeIn 1s ease-out;
+        }
+
+        /* VoxEngine Logo */
+        .logo-container {
+            margin-bottom: 60px;
+            position: relative;
+        }
+
+        .logo-text {
+            font-size: 72px;
+            font-weight: 200;
+            letter-spacing: 12px;
+            background: var(--logo-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            display: inline-block;
+            transition: background 0.3s ease;
+        }
+
+        .logo-text::after {
+            content: 'Vox Engine';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(78, 205, 196, 0.8) 50%,
+                transparent 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Subtitle */
+        .subtitle {
+            font-size: 16px;
+            color: #4ECDC4;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            margin-top: 20px;
+            font-weight: 300;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.5s forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 40px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            animation: slideInUp 1s ease-out 0.8s both;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .btn {
+            padding: 16px 32px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(78, 205, 196, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: var(--component-bg);
+            color: var(--text-primary);
+            border: 2px solid var(--component-border);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        [data-theme="dark"] .btn-secondary:hover {
+            background-color: rgba(26, 32, 44, 0.9);
+        }
+
+        /* Advanced options */
+        .advanced-options {
+            margin-top: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            background-color: var(--component-bg);
+            border: 1px solid var(--component-border);
+            border-radius: var(--radius);
+            padding: 30px;
+            box-shadow: var(--component-shadow);
+            animation: fadeIn 1s ease-out 1.2s both;
+        }
+
+        .advanced-options h3 {
+            font-size: 18px;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .component-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .component-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: var(--radius);
+            transition: var(--transition);
+        }
+
+        .component-option:hover {
+            background-color: rgba(78, 205, 196, 0.1);
+        }
+
+        .component-option input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .component-option label {
+            flex: 1;
+            font-size: 14px;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .component-option label i {
+            color: var(--primary);
+            font-size: 16px;
+        }
+
+        .component-option .status {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--component-shadow);
+            z-index: 100;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-toggle i {
+            font-size: 1.2rem;
+            color: var(--text-primary);
+        }
+
+        /* Version tag */
+        .version-tag {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+            opacity: 0.7;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .logo-text {
+                font-size: 48px;
+                letter-spacing: 8px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+                letter-spacing: 4px;
+            }
+
+            .start-container {
+                padding: 20px;
+            }
+
+            .advanced-options {
+                padding: 20px;
+            }
+        }
+
+        /* Loading state */
+        .btn.loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .btn.loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Animation for fade in */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Animation for fade out */
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+        }
+
+        /* Adjust theme toggle position */
+        .theme-toggle {
+            right: 20px;
+        }
+
+        /* Language selector */
+        .language-selector {
+            position: fixed;
+            top: 20px;
+            right: 80px;
+            z-index: 1000;
+        }
+        
+        .language-selector .theme-selector-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 10px var(--component-shadow);
+            transition: var(--transition);
+        }
+        
+        .language-selector .theme-selector-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px var(--component-shadow);
+        }
+        
+        .language-selector .theme-selector-menu {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            border-radius: var(--radius);
+            padding: 10px;
+            box-shadow: 0 4px 20px var(--component-shadow);
+            display: none;
+            min-width: 150px;
+        }
+        
+        .language-selector .theme-selector-menu.show {
+            display: block;
+        }
+        
+        .language-selector .theme-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .language-selector .language-options {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .language-selector .language-option {
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 14px;
+        }
+        
+        .language-selector .language-option:hover {
+            background: rgba(78, 205, 196, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Background particles -->
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- Theme toggle -->
+    <div class="theme-toggle" id="theme-toggle" title="切换主题">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <!-- Main container -->
+    <!-- Language Selector -->
+    <div class="language-selector theme-selector">
+        <div class="theme-selector-toggle" id="language-toggle" title="Switch Language">
+            <i class="fas fa-language"></i>
+        </div>
+        <div class="theme-selector-menu language-menu" id="language-menu">
+            <div class="theme-title">Language</div>
+            <div class="theme-options language-options">
+                <div class="theme-option language-option" data-language="zh-CN">中文</div>
+                <div class="theme-option language-option" data-language="en-US">English</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="start-container">
+        <!-- Logo -->
+        <div class="logo-container">
+            <h1 class="logo-text">Vox Engine</h1>
+            <p class="subtitle">Intelligent Speech Processing</p>
+        </div>
+
+        <!-- Buttons -->
+        <div class="button-group">
+            <button class="btn btn-primary" id="startButton">
+                <i class="fas fa-play-circle"></i>
+                加载系统组件
+            </button>
+            <button class="btn btn-secondary" id="advancedButton">
+                <i class="fas fa-cog"></i>
+                高级启动选项
+            </button>
+        </div>
+
+        <!-- Advanced options -->
+        <div class="advanced-options" id="advancedOptions" style="display: none;">
+            <h3><i class="fas fa-sliders"></i> 高级启动选项</h3>
+            <div class="component-options">
+                <div class="component-option">
+                    <input type="checkbox" id="core" checked>
+                    <label for="core"><i class="fas fa-microchip"></i> 核心引擎</label>
+                    <span class="status">必需</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="speech" checked>
+                    <label for="speech"><i class="fas fa-microphone"></i> 语音识别</label>
+                    <span class="status">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="translation" checked>
+                    <label for="translation"><i class="fas fa-language"></i> 翻译引擎</label>
+                    <span class="status">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="tts" checked>
+                    <label for="tts"><i class="fas fa-volume-up"></i> 文本转语音</label>
+                    <span class="status">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="models" checked>
+                    <label for="models"><i class="fas fa-database"></i> 模型管理</label>
+                    <span class="status">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="llama_cpp" checked>
+                    <label for="llama_cpp"><i class="fas fa-brain"></i> llama.cpp</label>
+                    <span class="status">默认LLM源</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version tag -->
+    <div class="version-tag">Vox Engine v0.3.0</div>
+
+    <script>
+        // Apply theme from localStorage or system preference
+        function applyTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+        
+        // Apply theme immediately
+        applyTheme();
+
+        // Generate background particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 30; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 20 + 's';
+            particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Advanced options toggle
+        document.getElementById('advancedButton').addEventListener('click', function() {
+            const advancedOptions = document.getElementById('advancedOptions');
+            if (advancedOptions.style.display === 'none') {
+                advancedOptions.style.display = 'block';
+                this.innerHTML = '<i class="fas fa-chevron-up"></i> 收起选项';
+            } else {
+                advancedOptions.style.display = 'none';
+                this.innerHTML = '<i class="fas fa-cog"></i> 高级启动选项';
+            }
+        });
+
+        // Start button click handler
+        document.getElementById('startButton').addEventListener('click', function() {
+            // Get selected components
+            const components = {
+                core: document.getElementById('core').checked,
+                speech: document.getElementById('speech').checked,
+                translation: document.getElementById('translation').checked,
+                tts: document.getElementById('tts').checked,
+                models: document.getElementById('models').checked,
+                llama_cpp: document.getElementById('llama_cpp').checked
+            };
+
+            // Store selected components in localStorage
+            localStorage.setItem('selected_components', JSON.stringify(components));
+
+            // Show loading state
+            this.innerHTML = 'Starting...';
+            this.classList.add('loading');
+
+            // Navigate to loading page
+            setTimeout(() => {
+                window.location.href = '/loading';
+            }, 1000);
+        });
+
+        // Theme toggle
+        document.getElementById('theme-toggle').addEventListener('click', function() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            if (newTheme === 'dark') {
+                this.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                this.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+
+        // Language management
+        let translations = {};
+        
+        // Load language configuration
+        async function loadTranslations() {
+            try {
+                const response = await fetch('/api/languages');
+                translations = await response.json();
+                updatePageLanguage();
+            } catch (error) {
+                console.error('Failed to load translations:', error);
+            }
+        }
+        
+        // Get current language
+        function getCurrentLanguage() {
+            return localStorage.getItem('language') || 'zh-CN';
+        }
+        
+        // Update page language
+        function updatePageLanguage() {
+            const lang = getCurrentLanguage();
+            const langData = translations[lang]?.app || translations['zh-CN']?.app;
+            
+            if (!langData) return;
+            
+            // Update page title
+            document.title = langData.title || 'VoxEngine - Start';
+            
+            // Update buttons
+            document.getElementById('startButton').innerHTML = `<i class="fas fa-play-circle"></i> ${lang === 'zh-CN' ? '加载系统组件' : 'Load System Components'}`;
+            document.getElementById('advancedButton').innerHTML = `<i class="fas fa-cog"></i> ${lang === 'zh-CN' ? '高级启动选项' : 'Advanced Start Options'}`;
+            
+            // Update advanced options
+            if (document.querySelector('.advanced-options h3')) {
+                document.querySelector('.advanced-options h3').innerHTML = `<i class="fas fa-sliders"></i> ${lang === 'zh-CN' ? '高级启动选项' : 'Advanced Start Options'}`;
+            }
+            
+            // Update component options
+            const componentLabels = document.querySelectorAll('.component-option label');
+            const componentTexts = lang === 'zh-CN' ? [
+                '核心引擎', '语音识别', '翻译引擎', '文本转语音', '模型管理', 'llama.cpp'
+            ] : [
+                'Core Engine', 'Speech Recognition', 'Translation Engine', 'Text-to-Speech', 'Model Management', 'llama.cpp'
+            ];
+            
+            componentLabels.forEach((label, index) => {
+                if (componentTexts[index]) {
+                    label.innerHTML = label.innerHTML.replace(/(核心引擎|语音识别|翻译引擎|文本转语音|模型管理|llama\.cpp)/, componentTexts[index]);
+                }
+            });
+            
+            // Update status texts
+            const statusTexts = document.querySelectorAll('.component-option .status');
+            const statusLabels = lang === 'zh-CN' ? ['必需', '推荐'] : ['Required', 'Recommended'];
+            
+            statusTexts.forEach(status => {
+                if (status.textContent === '必需') {
+                    status.textContent = statusLabels[0];
+                } else if (status.textContent === '推荐') {
+                    status.textContent = statusLabels[1];
+                }
+            });
+        }
+
+        // Language selector
+        const languageToggle = document.getElementById('language-toggle');
+        const languageMenu = document.getElementById('language-menu');
+        const languageOptions = document.querySelectorAll('.language-option');
+
+        // Toggle language menu with animation
+        languageToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            
+            // Add animation class
+            languageMenu.classList.toggle('show');
+            
+            if (languageMenu.classList.contains('show')) {
+                // Add entrance animation
+                languageMenu.style.animation = 'fadeIn 0.3s ease-out forwards';
+            } else {
+                // Add exit animation
+                languageMenu.style.animation = 'fadeOut 0.2s ease-in forwards';
+                setTimeout(() => {
+                    languageMenu.style.animation = '';
+                }, 200);
+            }
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!languageToggle.contains(e.target) && !languageMenu.contains(e.target) && languageMenu.classList.contains('show')) {
+                languageMenu.style.animation = 'fadeOut 0.2s ease-in forwards';
+                setTimeout(() => {
+                    languageMenu.classList.remove('show');
+                    languageMenu.style.animation = '';
+                }, 200);
+            }
+        });
+
+        // Language selection
+        languageOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                const language = this.getAttribute('data-language');
+                localStorage.setItem('language', language);
+                
+                // Add exit animation
+                languageMenu.style.animation = 'fadeOut 0.2s ease-in forwards';
+                setTimeout(() => {
+                    languageMenu.classList.remove('show');
+                    languageMenu.style.animation = '';
+                    location.reload(); // Refresh to apply language change
+                }, 200);
+            });
+        });
+
+        // Load translations
+        loadTranslations();
+    </script>
+</body>
+</html>

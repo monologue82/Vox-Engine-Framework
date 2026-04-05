@@ -1,0 +1,19 @@
+{
+  "theme": "dark",
+  "language": "en-US",
+  "downloadSource": "github",
+  "vllmDownloadSource": "hf-mirror",
+  "translation": {
+    "provider": "vllm",
+    "model": "",
+    "stylePreset": "",
+    "customStyle": ""
+  },
+  "tts": {
+    "voice": "en-US-JennyNeural",
+    "language": "english",
+    "rate": 0,
+    "autoPlay": true,
+    "streaming": true
+  }
+}

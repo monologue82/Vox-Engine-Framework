@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Page entrance animation - complements loading page exit */
+        .page-entrance-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--background);
+            z-index: 9999;
+            transform: translateY(0);
+            transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .page-entrance-overlay.exit {
+            transform: translateY(-100%);
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            margin: 40px auto;
+            padding: 0 20px;
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease-out 0.3s, transform 0.5s ease-out 0.3s;
+        }
+
+        .container.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header h1 i {
+            color: var(--primary-color);
+            font-size: 2rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .card {
+            margin-bottom: 30px;
+            animation: slideInUp 0.5s ease-out;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--glass-border);
+            border-radius: 10px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: var(--glass-text);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group input[type="number"]:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(78, 205, 196, 0.2);
+        }
+
+        .form-group input[type="text"]::placeholder,
+        .form-group input[type="number"]::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-group label:hover {
+            color: var(--primary-color);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 40px;
+            animation: fadeIn 0.5s ease-out 0.2s both;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            animation: slideInDown 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow) 0px 4px 12px 0px;
+        }
+
+        .status.success {
+            border-left: 4px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .status.error {
+            border-left: 4px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        .status i {
+            font-size: 1.2rem;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                margin: 20px auto;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--component-shadow);
+            z-index: 100;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-toggle i {
+            font-size: 1.2rem;
+            color: var(--text-primary);
+        }
+
+        /* Language selector */
+        .language-selector {
+            position: fixed;
+            top: 20px;
+            right: 80px;
+            z-index: 1000;
+        }
+        
+        .language-selector .theme-selector-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 10px var(--component-shadow);
+            transition: var(--transition);
+        }
+        
+        .language-selector .theme-selector-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px var(--component-shadow);
+        }
+        
+        .language-selector .theme-selector-menu {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            border-radius: var(--radius);
+            padding: 10px;
+            box-shadow: 0 4px 20px var(--component-shadow);
+            display: none;
+            min-width: 150px;
+        }
+        
+        .language-selector .theme-selector-menu.show {
+            display: block;
+        }
+        
+        .language-selector .theme-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .language-selector .language-options {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .language-selector .language-option {
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 14px;
+        }
+        
+        .language-selector .language-option:hover {
+            background: rgba(78, 205, 196, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles - inspired by loading page -->
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- Page entrance overlay for smooth transition from loading -->
+    <div class="page-entrance-overlay" id="pageEntrance"></div>
+
+    <!-- Theme toggle -->
+    <div class="theme-toggle" id="theme-toggle" title="切换主题">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <!-- Language Selector -->
+    <div class="language-selector theme-selector">
+        <div class="theme-selector-toggle" id="language-toggle" title="Switch Language">
+            <i class="fas fa-language"></i>
+        </div>
+        <div class="theme-selector-menu language-menu" id="language-menu">
+            <div class="theme-title">Language</div>
+            <div class="theme-options language-options">
+                <div class="theme-option language-option" data-language="zh-CN">中文</div>
+                <div class="theme-option language-option" data-language="en-US">English</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="container">
+        <!-- Header & VoxEngine Logo -->
+        <div class="header">
+            <h1 class="voxengine-logo">VOXENGINE</h1>
+            <p class="header-subtitle">系统设置</p>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-microchip"></i> llama.cpp 配置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="llama_cpp_version">llama.cpp 版本</label>
+                    <select id="llama_cpp_version">
+                        <option value="auto">自动检测</option>
+                        <option value="cpu">CPU 版本</option>
+                        <option value="cuda">CUDA 版本</option>
+                        <option value="metal">Metal 版本 (Mac)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="gguf_model_path">GGUF 模型路径</label>
+                    <input type="text" id="gguf_model_path" placeholder="models/llm 下的模型文件">
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-sliders"></i> 高级设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="auto_start_vllm">
+                        <label for="auto_start_vllm">自动启动 vLLM 服务</label>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="auto_start_translation">
+                        <label for="auto_start_translation">自动启动翻译服务</label>
+                    </div>
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="auto_start_llama_cpp">
+                        <label for="auto_start_llama_cpp">自动启动 llama.cpp 服务</label>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable_system_monitor">
+                        <label for="enable_system_monitor">启用系统监控面板</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-microphone"></i> 语音识别设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="default_microphone">默认麦克风</label>
+                    <select id="default_microphone">
+                        <option value="auto">自动选择</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="speech_model">默认语音模型</label>
+                    <select id="speech_model">
+                        <option value="vosk-model-small-cn-0.22">Vosk Small CN</option>
+                        <option value="vosk-model-cn-0.22">Vosk Full CN</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="sample_rate">采样率 (Hz)</label>
+                    <select id="sample_rate">
+                        <option value="16000">16000</option>
+                        <option value="8000">8000</option>
+                        <option value="22050">22050</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-language"></i> 翻译设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="default_translation_provider">默认翻译服务</label>
+                    <select id="default_translation_provider">
+                        <option value="llama.cpp">llama.cpp</option>
+                        <option value="vllm">vLLM</option>
+                        <option value="ollama">Ollama</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="default_translation_model">默认翻译模型</label>
+                    <input type="text" id="default_translation_model" placeholder="例如: llama2, Qwen2.5-7B-Instruct">
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-volume-up"></i> TTS 设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable_tts">
+                        <label for="enable_tts">启用文本转语音</label>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="default_tts_model">默认 TTS 模型</label>
+                    <select id="default_tts_model">
+                        <option value="s2Gv2ProPlus">SoVITS s2Gv2ProPlus</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-network-wired"></i> 网络设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="server_port">服务器端口</label>
+                    <input type="number" id="server_port" placeholder="5001">
+                </div>
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable_cors">
+                        <label for="enable_cors">启用 CORS 跨域请求</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-secondary" onclick="window.location.href='/app'">
+                <i class="fas fa-arrow-left"></i> 返回应用
+            </button>
+            <button class="btn btn-primary" onclick="saveSettings()">
+                <i class="fas fa-save"></i> 保存设置
+            </button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+
+
+    </div>
+
+    <!-- Immediately set theme before anything else -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+
+    <script>
+        // Background particles animation
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            if (!particlesContainer) return;
+
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Theme management
+        function setupThemeSelector() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+
+            // Set initial theme
+            if (isDark) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+
+            // Theme toggle
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                
+                if (newTheme === 'dark') {
+                    this.innerHTML = '<i class="fas fa-sun"></i>';
+                } else {
+                    this.innerHTML = '<i class="fas fa-moon"></i>';
+                }
+            });
+        }
+
+        // Language management
+        let translations = {};
+        
+        // Load language configuration
+        async function loadTranslations() {
+            try {
+                const response = await fetch('/api/languages');
+                translations = await response.json();
+                updatePageLanguage();
+            } catch (error) {
+                console.error('Failed to load translations:', error);
+            }
+        }
+        
+        // Get current language
+        function getCurrentLanguage() {
+            return localStorage.getItem('language') || 'zh-CN';
+        }
+        
+        // Update page language
+        function updatePageLanguage() {
+            const lang = getCurrentLanguage();
+            const langData = translations[lang]?.app || translations['zh-CN']?.app;
+            
+            if (!langData) return;
+            
+            // Update page title
+            document.title = langData.title || 'VoxEngine - System Settings';
+            
+
+        }
+
+        function setupLanguageSelector() {
+            const languageToggle = document.getElementById('language-toggle');
+            const languageMenu = document.getElementById('language-menu');
+            const languageOptions = document.querySelectorAll('.language-option');
+
+            // Toggle language menu with animation
+            languageToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                
+                // Add animation class
+                languageMenu.classList.toggle('show');
+                
+                if (languageMenu.classList.contains('show')) {
+                    // Add entrance animation
+                    languageMenu.style.animation = 'fadeIn 0.3s ease-out forwards';
+                } else {
+                    // Add exit animation
+                    languageMenu.style.animation = 'fadeOut 0.2s ease-in forwards';
+                    setTimeout(() => {
+                        languageMenu.style.animation = '';
+                    }, 200);
+                }
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!languageToggle.contains(e.target) && !languageMenu.contains(e.target) && languageMenu.classList.contains('show')) {
+                    languageMenu.style.animation = 'fadeOut 0.2s ease-in forwards';
+                    setTimeout(() => {
+                        languageMenu.classList.remove('show');
+                        languageMenu.style.animation = '';
+                    }, 200);
+                }
+            });
+
+            // Language selection
+            languageOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    const language = this.getAttribute('data-language');
+                    localStorage.setItem('language', language);
+                    
+                    // Add exit animation
+                    languageMenu.style.animation = 'fadeOut 0.2s ease-in forwards';
+                    setTimeout(() => {
+                        languageMenu.classList.remove('show');
+                        languageMenu.style.animation = '';
+                        location.reload(); // Refresh to apply language change
+                    }, 200);
+                });
+            });
+        }
+
+        // Toast notification
+        function showToast(message, type = 'info', duration = 3000) {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+                <div class="toast-content">
+                    <div class="toast-title">${type === 'success' ? '成功' : type === 'error' ? '错误' : '信息'}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Close button
+            const closeButton = toast.querySelector('.toast-close');
+            closeButton.addEventListener('click', function() {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 300);
+            });
+
+            // Auto close
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // Page entrance animation
+        window.addEventListener('DOMContentLoaded', function() {
+            // Create particles
+            createParticles();
+
+            // Setup theme and language selectors
+            setupThemeSelector();
+            setupLanguageSelector();
+
+            // Entrance animation
+            setTimeout(function() {
+                const overlay = document.getElementById('pageEntrance');
+                if (overlay) {
+                    overlay.classList.add('exit');
+                }
+                
+                // Show container
+                const container = document.querySelector('.container');
+                if (container) {
+                    container.classList.add('active');
+                }
+            }, 100);
+
+            // Load translations and settings
+            loadTranslations();
+            loadSettings();
+        });
+
+        // 加载当前设置
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                
+                // llama.cpp 配置
+                document.getElementById('llama_cpp_version').value = settings.llama_cpp_version || 'auto';
+                document.getElementById('gguf_model_path').value = settings.gguf_model_path || '';
+                
+                // 高级设置
+                document.getElementById('auto_start_vllm').checked = settings.vllm?.auto_start || false;
+                document.getElementById('auto_start_translation').checked = settings.translation?.auto_start_vllm || false;
+                document.getElementById('auto_start_llama_cpp').checked = settings.llama_cpp?.auto_start || false;
+                document.getElementById('enable_system_monitor').checked = settings.system?.enable_monitor || false;
+                
+                // 语音识别设置
+                document.getElementById('default_microphone').value = settings.speech?.default_microphone || 'auto';
+                document.getElementById('speech_model').value = settings.speech?.model || 'vosk-model-small-cn-0.22';
+                document.getElementById('sample_rate').value = settings.speech?.sample_rate || '16000';
+                
+                // 翻译设置
+                document.getElementById('default_translation_provider').value = settings.translation?.default_provider || 'llama.cpp';
+                document.getElementById('default_translation_model').value = settings.translation?.default_model || '';
+                
+                // TTS 设置
+                document.getElementById('enable_tts').checked = settings.tts?.enabled || false;
+                document.getElementById('default_tts_model').value = settings.tts?.default_model || 's2Gv2ProPlus';
+                
+                // 网络设置
+                document.getElementById('server_port').value = settings.server?.port || '5001';
+                document.getElementById('enable_cors').checked = settings.server?.enable_cors || true;
+            } catch (error) {
+                console.error('加载设置失败:', error);
+                showToast('加载设置失败', 'error');
+            }
+        }
+
+        // 保存设置
+        async function saveSettings() {
+            const settings = {
+                // llama.cpp 配置
+                llama_cpp_version: document.getElementById('llama_cpp_version').value,
+                gguf_model_path: document.getElementById('gguf_model_path').value,
+                
+                // 服务设置
+                vllm: {
+                    auto_start: document.getElementById('auto_start_vllm').checked
+                },
+                translation: {
+                    auto_start_vllm: document.getElementById('auto_start_translation').checked,
+                    default_provider: document.getElementById('default_translation_provider').value,
+                    default_model: document.getElementById('default_translation_model').value
+                },
+                llama_cpp: {
+                    auto_start: document.getElementById('auto_start_llama_cpp').checked,
+                    version: document.getElementById('llama_cpp_version').value,
+                    model_path: document.getElementById('gguf_model_path').value
+                },
+                
+                // 系统设置
+                system: {
+                    enable_monitor: document.getElementById('enable_system_monitor').checked
+                },
+                
+                // 语音识别设置
+                speech: {
+                    default_microphone: document.getElementById('default_microphone').value,
+                    model: document.getElementById('speech_model').value,
+                    sample_rate: document.getElementById('sample_rate').value
+                },
+                
+                // TTS 设置
+                tts: {
+                    enabled: document.getElementById('enable_tts').checked,
+                    default_model: document.getElementById('default_tts_model').value
+                },
+                
+                // 网络设置
+                server: {
+                    port: document.getElementById('server_port').value,
+                    enable_cors: document.getElementById('enable_cors').checked
+                }
+            };
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('设置保存成功！', 'success');
+                    
+                    // 重启系统
+                    setTimeout(() => {
+                        window.location.href = '/restart';
+                    }, 1500);
+                } else {
+                    showToast('保存失败: ' + (result.error || '未知错误'), 'error');
+                }
+            } catch (error) {
+                console.error('保存设置失败:', error);
+                showToast('保存失败: 网络错误', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+{
+  "presets": [
+    {
+      "id": "formal",
+      "name": "正式风格",
+      "description": "适合商务、官方场合的正式语言",
+      "type": "style",
+      "prompt_template": "Translate the following text to English with a formal style. Use polite and professional language, maintain proper grammar and punctuation.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "casual",
+      "name": "随意风格",
+      "description": "日常对话的轻松随意语言",
+      "type": "style",
+      "prompt_template": "Translate the following text to English with a casual, friendly style. Use conversational language that sounds natural in everyday speech.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "business",
+      "name": "商务风格",
+      "description": "商务会议和邮件的专业语言",
+      "type": "style",
+      "prompt_template": "Translate the following text to English with a professional business style. Use clear, concise language appropriate for business communications.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "academic",
+      "name": "学术风格",
+      "description": "学术论文和研究的正式语言",
+      "type": "style",
+      "prompt_template": "Translate the following text to English with an academic style. Use formal language appropriate for scholarly writing, with precise terminology.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "poetic",
+      "name": "诗意风格",
+      "description": "富有文学性和表现力的语言",
+      "type": "style",
+      "prompt_template": "Translate the following text to English with a poetic, lyrical style. Use expressive language and maintain the emotional tone.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "technical",
+      "name": "技术风格",
+      "description": "技术文档和说明书的专业语言",
+      "type": "style",
+      "prompt_template": "Translate the following text to English with a technical style. Use precise terminology and clear explanations suitable for technical documentation.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "meeting",
+      "name": "商务会议",
+      "description": "商务会议中的语言",
+      "type": "occasion",
+      "prompt_template": "Translate the following text to English for a business meeting. Use professional language appropriate for formal discussions and decision-making.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "presentation",
+      "name": "演讲场合",
+      "description": "公开演讲和演示的语言",
+      "type": "occasion",
+      "prompt_template": "Translate the following text to English for a presentation. Use clear, engaging language suitable for public speaking.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "interview",
+      "name": "面试场合",
+      "description": "工作面试中的语言",
+      "type": "occasion",
+      "prompt_template": "Translate the following text to English for a job interview. Use professional and confident language appropriate for interview settings.\n\nText: {text}\n\nTranslation:"
+    },
+    {
+      "id": "conversation",
+      "name": "日常对话",
+      "description": "朋友间的日常交流",
+      "type": "occasion",
+      "prompt_template": "Translate the following text to English for a casual conversation. Use natural, friendly language suitable for everyday interactions.\n\nText: {text}\n\nTranslation:"
+    }
+  ]
+}

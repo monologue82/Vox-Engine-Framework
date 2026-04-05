@@ -1,0 +1,51 @@
+{
+  "system": {
+    "enable_monitor": false
+  },
+  "server": {
+    "port": "5000",
+    "enable_cors": true
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "chunk_size": 4096,
+    "channels": 1,
+    "format": "paInt16"
+  },
+  "translation": {
+    "auto_start_vllm": true,
+    "default_provider": "llama.cpp",
+    "default_model": ""
+  },
+  "vllm": {
+    "auto_start": true
+  },
+  "ollama": {
+    "url": "http://localhost:11434",
+    "timeout": 60,
+    "default_model": "llama2"
+  },
+  "vosk": {
+    "model_path": "models/stt/vosk-model-small-cn-0.22"
+  },
+  "performance": {
+    "max_threads": 4,
+    "buffer_size": 4096,
+    "ping_timeout": 60,
+    "ping_interval": 25
+  },
+  "llama_cpp": {
+    "auto_start": true,
+    "version": "auto",
+    "model_path": ""
+  },
+  "speech": {
+    "default_microphone": "auto",
+    "model": "vosk-model-small-cn-0.22",
+    "sample_rate": "16000"
+  },
+  "tts": {
+    "enabled": false,
+    "default_model": "s2Gv2ProPlus"
+  }
+}
