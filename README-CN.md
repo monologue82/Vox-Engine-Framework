@@ -2,13 +2,11 @@
 
 # Vox Engine Framework
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#)
+[!\[License: MIT\](https://img.shields.io/badge/License-MIT-yellow.svg null)](https://opensource.org/licenses/MIT)
+[!\[Python Version\](https://img.shields.io/badge/python-3.11%2B-blue.svg null)](https://www.python.org/downloads/)
+[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](#)
 
 ## 📖 项目简介
-
-This is a powerful real-time speech recognition and translation system, integrating advanced speech recognition technology and multiple AI translation engines. The system supports streaming transmission, providing low-latency real-time recognition and translation experience, along with a beautiful web interface.
 
 这是一个功能强大的实时语音识别与翻译系统，集成了先进的语音识别技术和多种AI翻译引擎。系统支持流式传输，能够提供低延迟的实时识别和翻译体验，同时具有美观的Web界面。
 
@@ -26,6 +24,7 @@ This is a powerful real-time speech recognition and translation system, integrat
 ## 🛠️ 技术栈
 
 ### 后端技术
+
 - **框架**: Flask + Flask-SocketIO
 - **语音识别**: Vosk
 - **AI翻译**: vLLM / Ollama / LM Studio
@@ -34,11 +33,13 @@ This is a powerful real-time speech recognition and translation system, integrat
 - **缓存系统**: LRU Cache
 
 ### 前端技术
+
 - **核心**: HTML5 + CSS3 + JavaScript
 - **实时通信**: Socket.IO
 - **音频处理**: Web Audio API
 
 ### 开发工具
+
 - **依赖管理**: pip + requirements.txt
 - **虚拟环境**: venv
 - **脚本管理**: Windows Batch (.bat)
@@ -46,12 +47,14 @@ This is a powerful real-time speech recognition and translation system, integrat
 ## 📋 系统要求
 
 ### 最低配置
+
 - **操作系统**: Windows 10/11
 - **Python**: 3.11 或更高版本
 - **内存**: 8GB RAM
 - **存储空间**: 10GB 可用空间
 
 ### 推荐配置
+
 - **操作系统**: Windows 11
 - **Python**: 3.13
 - **内存**: 16GB+ RAM
@@ -70,11 +73,13 @@ cd Vox-Engine-Framework
 ### 2. 安装依赖
 
 #### 方式一：使用批处理脚本（推荐）
+
 ```bash
 setup.bat
 ```
 
 #### 方式二：手动安装
+
 ```bash
 # 创建虚拟环境
 python -m venv venv
@@ -89,6 +94,7 @@ pip install -r requirements.txt
 ### 3. 配置翻译引擎
 
 #### 选项A：vLLM（推荐，性能最佳）
+
 ```bash
 # 安装vLLM
 pip install vllm
@@ -97,12 +103,16 @@ pip install vllm
 ```
 
 #### 选项B：Ollama（备选方案）
+
 1. 下载并安装 [Ollama](https://ollama.com/)
 2. 启动Ollama服务：
+
 ```bash
 ollama serve
 ```
-3. 下载翻译模型：
+
+1. 下载翻译模型：
+
 ```bash
 ollama pull llama2
 # 或
@@ -112,11 +122,13 @@ ollama pull qwen2.5:7b
 ### 4. 启动系统
 
 #### 方式一：使用批处理文件（推荐）
+
 ```bash
 start.bat
 ```
 
 #### 方式二：手动启动
+
 ```bash
 # 激活虚拟环境
 .\venv\Scripts\activate
@@ -206,11 +218,11 @@ Vox-Engine-Framework/
 
 ### 翻译引擎选择
 
-| 引擎 | 特点 | 推荐场景 |
-|------|------|----------|
-| **vLLM** | 高性能、低延迟、支持连续批处理 | 生产环境、需要最佳性能 |
-| **Ollama** | 简单易用、支持多种模型 | 开发测试、个人使用 |
-| **LM Studio** | 图形化界面、模型管理方便 | 桌面应用场景 |
+| 引擎            | 特点              | 推荐场景        |
+| ------------- | --------------- | ----------- |
+| **vLLM**      | 高性能、低延迟、支持连续批处理 | 生产环境、需要最佳性能 |
+| **Ollama**    | 简单易用、支持多种模型     | 开发测试、个人使用   |
+| **LM Studio** | 图形化界面、模型管理方便    | 桌面应用场景      |
 
 ## ⚙️ 配置说明
 
@@ -240,23 +252,29 @@ Vox-Engine-Framework/
 ### 常见问题
 
 **Q: 提示 "Ollama 服务未运行"**
+
 - A: 请先运行 `ollama serve` 启动Ollama服务
 
 **Q: 无法加载语音识别模型**
+
 - A: 检查 `models/stt/vosk-model-small-cn-0.22` 目录是否存在
 
 **Q: 麦克风列表为空**
+
 - A: 检查系统麦克风是否正常工作，并确保应用程序有麦克风权限
 
 **Q: 翻译模型列表为空**
+
 - A: 确保已下载对应模型（如 `ollama pull <模型名>`）
 
 **Q: 中文路径问题**
+
 - A: 系统会自动将模型复制到临时目录处理中文路径问题
 
 ### 日志和调试
 
 应用运行时会在控制台输出详细的日志信息，包括：
+
 - 模型加载状态
 - 服务连接状态
 - 识别和翻译进度
@@ -299,6 +317,6 @@ Vox-Engine-Framework/
 - 发送 Pull Request
 - 在 [哔哩哔哩](https://space.bilibili.com/1741551557) 关注我
 
----
+***
 
 **注意**: 本项目仅供学习和研究使用。使用AI模型时请遵守相关模型的许可协议。

@@ -2,15 +2,13 @@ English | [中文](README-CN.md)
 
 # Vox Engine Framework
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#)
+[!\[License: MIT\](https://img.shields.io/badge/License-MIT-yellow.svg null)](https://opensource.org/licenses/MIT)
+[!\[Python Version\](https://img.shields.io/badge/python-3.11%2B-blue.svg null)](https://www.python.org/downloads/)
+[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](#)
 
 ## 📖 Project Introduction
 
 This is a powerful real-time speech recognition and translation system, integrating advanced speech recognition technology and multiple AI translation engines. The system supports streaming transmission, providing low-latency real-time recognition and translation experience, along with a beautiful web interface.
-
-这是一个功能强大的实时语音识别与翻译系统，集成了先进的语音识别技术和多种AI翻译引擎。系统支持流式传输，能够提供低延迟的实时识别和翻译体验，同时具有美观的Web界面。
 
 ## ✨ Core Features
 
@@ -26,6 +24,7 @@ This is a powerful real-time speech recognition and translation system, integrat
 ## 🛠️ Technology Stack
 
 ### Backend Technologies
+
 - **Framework**: Flask + Flask-SocketIO
 - **Speech Recognition**: Vosk
 - **AI Translation**: vLLM / Ollama / LM Studio
@@ -34,11 +33,13 @@ This is a powerful real-time speech recognition and translation system, integrat
 - **Cache System**: LRU Cache
 
 ### Frontend Technologies
+
 - **Core**: HTML5 + CSS3 + JavaScript
 - **Real-time Communication**: Socket.IO
 - **Audio Processing**: Web Audio API
 
 ### Development Tools
+
 - **Dependency Management**: pip + requirements.txt
 - **Virtual Environment**: venv
 - **Script Management**: Windows Batch (.bat)
@@ -46,12 +47,14 @@ This is a powerful real-time speech recognition and translation system, integrat
 ## 📋 System Requirements
 
 ### Minimum Requirements
+
 - **Operating System**: Windows 10/11
 - **Python**: 3.11 or higher
 - **Memory**: 8GB RAM
 - **Storage**: 10GB available space
 
 ### Recommended Requirements
+
 - **Operating System**: Windows 11
 - **Python**: 3.13
 - **Memory**: 16GB+ RAM
@@ -70,11 +73,13 @@ cd Vox-Engine-Framework
 ### 2. Install Dependencies
 
 #### Method 1: Using Batch Script (Recommended)
+
 ```bash
 setup.bat
 ```
 
 #### Method 2: Manual Installation
+
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -89,6 +94,7 @@ pip install -r requirements.txt
 ### 3. Configure Translation Engine
 
 #### Option A: vLLM (Recommended, Best Performance)
+
 ```bash
 # Install vLLM
 pip install vllm
@@ -97,12 +103,16 @@ pip install vllm
 ```
 
 #### Option B: Ollama (Alternative)
+
 1. Download and install [Ollama](https://ollama.com/)
 2. Start Ollama service:
+
 ```bash
 ollama serve
 ```
-3. Download translation model:
+
+1. Download translation model:
+
 ```bash
 ollama pull llama2
 # or
@@ -112,11 +122,13 @@ ollama pull qwen2.5:7b
 ### 4. Start the System
 
 #### Method 1: Using Batch File (Recommended)
+
 ```bash
 start.bat
 ```
 
 #### Method 2: Manual Startup
+
 ```bash
 # Activate virtual environment
 .\venv\Scripts\activate
@@ -206,11 +218,11 @@ Vox-Engine-Framework/
 
 ### Translation Engine Selection
 
-| Engine | Features | Recommended Scenarios |
-|--------|----------|------------------------|
-| **vLLM** | High performance, low latency, continuous batching support | Production environments, best performance required |
-| **Ollama** | Easy to use, supports multiple models | Development testing, personal use |
-| **LM Studio** | Graphical interface, convenient model management | Desktop application scenarios |
+| Engine        | Features                                                   | Recommended Scenarios                              |
+| ------------- | ---------------------------------------------------------- | -------------------------------------------------- |
+| **vLLM**      | High performance, low latency, continuous batching support | Production environments, best performance required |
+| **Ollama**    | Easy to use, supports multiple models                      | Development testing, personal use                  |
+| **LM Studio** | Graphical interface, convenient model management           | Desktop application scenarios                      |
 
 ## ⚙️ Configuration
 
@@ -240,23 +252,29 @@ Vox-Engine-Framework/
 ### Common Issues
 
 **Q: Getting "Ollama service not running"**
+
 - A: Please run `ollama serve` first to start Ollama service
 
 **Q: Cannot load speech recognition model**
+
 - A: Check if `models/stt/vosk-model-small-cn-0.22` directory exists
 
 **Q: Microphone list is empty**
+
 - A: Check if system microphone is working properly and ensure the application has microphone permissions
 
 **Q: Translation model list is empty**
+
 - A: Ensure you have downloaded the corresponding model (e.g., `ollama pull <model_name>`)
 
 **Q: Chinese path issues**
+
 - A: The system will automatically copy models to a temporary directory to handle Chinese path issues
 
 ### Logs and Debugging
 
 The application outputs detailed log information in the console while running, including:
+
 - Model loading status
 - Service connection status
 - Recognition and translation progress
@@ -299,6 +317,6 @@ For questions or suggestions, please contact us through:
 - Send a Pull Request
 - Follow me on [Bilibili](https://space.bilibili.com/1741551557)
 
----
+***
 
 **Note**: This project is for learning and research purposes only. Please comply with the license agreements of the respective AI models when using them.
