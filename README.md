@@ -2,26 +2,29 @@ English | [中文](README-CN.md)
 
 # Vox Engine Framework
 
-[!\[License: MIT\](https://img.shields.io/badge/License-MIT-yellow.svg null)](https://opensource.org/licenses/MIT)
-[!\[Python Version\](https://img.shields.io/badge/python-3.11%2B-blue.svg null)](https://www.python.org/downloads/)
-[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#)
+[![GitHub Stars](https://img.shields.io/github/stars/monologue82/Vox-Engine-Framework?style=social)](https://github.com/monologue82/Vox-Engine-Framework/stargazers)
 
-## 📖 Project Introduction
+## Project Introduction
 
 This is a powerful real-time speech recognition and translation system, integrating advanced speech recognition technology and multiple AI translation engines. The system supports streaming transmission, providing low-latency real-time recognition and translation experience, along with a beautiful web interface.
 
-## ✨ Core Features
+这是一个功能强大的实时语音识别与翻译系统，集成了先进的语音识别技术和多种AI翻译引擎。系统支持流式传输，能够提供低延迟的实时识别和翻译体验，同时具有美观的Web界面。
 
-- 🎯 **Real-time Speech Recognition** - High-performance offline speech recognition based on Vosk
-- 🔄 **Intelligent Translation** - Supports multiple translation engines including vLLM, Ollama, LM Studio
-- ⚡ **Streaming Transmission** - Real-time streaming output of recognition and translation results
-- 🎙️ **Microphone Management** - Supports multi-device selection and switching
-- 🤖 **Model Management** - Flexible AI model selection and configuration
-- 📊 **Real-time Monitoring** - Displays key metrics such as recognition duration, translation duration, character count
-- 🎨 **Beautiful Interface** - Modern WebUI design with responsive layout
-- 🔌 **Automatic Service Startup** - One-click startup of backend services like vLLM
+## Core Features
 
-## 🛠️ Technology Stack
+- **Real-time Speech Recognition** - High-performance offline speech recognition based on Vosk
+- **Intelligent Translation** - Supports multiple translation engines including vLLM, Ollama, LM Studio
+- **Streaming Transmission** - Real-time streaming output of recognition and translation results
+- **Microphone Management** - Supports multi-device selection and switching
+- **Model Management** - Flexible AI model selection and configuration
+- **Real-time Monitoring** - Displays key metrics such as recognition duration, translation duration, character count
+- **Beautiful Interface** - Modern WebUI design with responsive layout
+- **Automatic Service Startup** - One-click startup of backend services like vLLM
+
+## Technology Stack
 
 ### Backend Technologies
 
@@ -44,7 +47,7 @@ This is a powerful real-time speech recognition and translation system, integrat
 - **Virtual Environment**: venv
 - **Script Management**: Windows Batch (.bat)
 
-## 📋 System Requirements
+## System Requirements
 
 ### Minimum Requirements
 
@@ -61,7 +64,7 @@ This is a powerful real-time speech recognition and translation system, integrat
 - **GPU**: NVIDIA GPU (CUDA supported)
 - **Storage**: 50GB+ SSD
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone or Download the Project
 
@@ -111,7 +114,7 @@ pip install vllm
 ollama serve
 ```
 
-1. Download translation model:
+3. Download translation model:
 
 ```bash
 ollama pull llama2
@@ -141,7 +144,7 @@ python app.py
 
 Open your browser and visit: `http://localhost:5001`
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Vox-Engine-Framework/
@@ -205,7 +208,7 @@ Vox-Engine-Framework/
 └── repair.bat                  # Repair script
 ```
 
-## 💡 Usage Guide
+## Usage Guide
 
 ### Basic Usage Flow
 
@@ -218,13 +221,13 @@ Vox-Engine-Framework/
 
 ### Translation Engine Selection
 
-| Engine        | Features                                                   | Recommended Scenarios                              |
-| ------------- | ---------------------------------------------------------- | -------------------------------------------------- |
-| **vLLM**      | High performance, low latency, continuous batching support | Production environments, best performance required |
-| **Ollama**    | Easy to use, supports multiple models                      | Development testing, personal use                  |
-| **LM Studio** | Graphical interface, convenient model management           | Desktop application scenarios                      |
+| Engine | Features | Recommended Scenarios |
+|--------|----------|------------------------|
+| **vLLM** | High performance, low latency, continuous batching support | Production environments, best performance required |
+| **Ollama** | Easy to use, supports multiple models | Development testing, personal use |
+| **LM Studio** | Graphical interface, convenient model management | Desktop application scenarios |
 
-## ⚙️ Configuration
+## Configuration
 
 ### Main Configuration File (config.json)
 
@@ -247,47 +250,45 @@ Vox-Engine-Framework/
 
 - `PYTORCH_CUDA_ALLOC_CONF`: PyTorch memory allocation configuration (default: `expandable_segments:True`)
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
 **Q: Getting "Ollama service not running"**
-
 - A: Please run `ollama serve` first to start Ollama service
 
 **Q: Cannot load speech recognition model**
-
 - A: Check if `models/stt/vosk-model-small-cn-0.22` directory exists
 
 **Q: Microphone list is empty**
-
 - A: Check if system microphone is working properly and ensure the application has microphone permissions
 
 **Q: Translation model list is empty**
-
 - A: Ensure you have downloaded the corresponding model (e.g., `ollama pull <model_name>`)
 
 **Q: Chinese path issues**
-
 - A: The system will automatically copy models to a temporary directory to handle Chinese path issues
 
 ### Logs and Debugging
 
 The application outputs detailed log information in the console while running, including:
-
 - Model loading status
 - Service connection status
 - Recognition and translation progress
 - Error and warning messages
 
-## 📈 Performance Optimization Tips
+## Performance Optimization Tips
 
 1. **Use SSD Storage** - Placing models and system on SSD can significantly improve loading speed
 2. **GPU Acceleration** - Use NVIDIA GPU with CUDA support to run vLLM
 3. **Proper Model Configuration** - Choose appropriate model size based on your hardware
 4. **Network Optimization** - vLLM service is recommended to run locally to reduce network latency
 
-## 🤝 Contributing
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=monologue82/Vox-Engine-Framework&type=Date)](https://star-history.com/#monologue82/Vox-Engine-Framework&Date)
+
+## Contributing
 
 We welcome contributions of all kinds!
 
@@ -297,11 +298,11 @@ We welcome contributions of all kinds!
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [Vosk](https://alphacephei.com/vosk/) - Open source speech recognition engine
 - [vLLM](https://github.com/vllm-project/vllm) - High performance LLM inference engine
@@ -309,7 +310,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Flask](https://flask.palletsprojects.com/) - Python Web framework
 - [GSV-TTS-Lite](https://pypi.org/project/gsv-tts-lite/) - Lightweight TTS engine
 
-## 📞 Contact
+## Contact
 
 For questions or suggestions, please contact us through:
 
@@ -317,6 +318,6 @@ For questions or suggestions, please contact us through:
 - Send a Pull Request
 - Follow me on [Bilibili](https://space.bilibili.com/1741551557)
 
-***
+---
 
 **Note**: This project is for learning and research purposes only. Please comply with the license agreements of the respective AI models when using them.

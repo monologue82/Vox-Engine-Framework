@@ -2,26 +2,29 @@
 
 # Vox Engine Framework
 
-[!\[License: MIT\](https://img.shields.io/badge/License-MIT-yellow.svg null)](https://opensource.org/licenses/MIT)
-[!\[Python Version\](https://img.shields.io/badge/python-3.11%2B-blue.svg null)](https://www.python.org/downloads/)
-[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#)
+[![GitHub Stars](https://img.shields.io/github/stars/monologue82/Vox-Engine-Framework?style=social)](https://github.com/monologue82/Vox-Engine-Framework/stargazers)
 
-## 📖 项目简介
+## 项目简介
+
+This is a powerful real-time speech recognition and translation system, integrating advanced speech recognition technology and multiple AI translation engines. The system supports streaming transmission, providing low-latency real-time recognition and translation experience, along with a beautiful web interface.
 
 这是一个功能强大的实时语音识别与翻译系统，集成了先进的语音识别技术和多种AI翻译引擎。系统支持流式传输，能够提供低延迟的实时识别和翻译体验，同时具有美观的Web界面。
 
-## ✨ 核心功能
+## 核心功能
 
-- 🎯 **实时语音识别** - 基于Vosk的高性能离线语音识别
-- 🔄 **智能翻译** - 支持vLLM、Ollama、LM Studio等多种翻译引擎
-- ⚡ **流式传输** - 识别和翻译结果实时流式输出
-- 🎙️ **麦克风管理** - 支持多设备选择和切换
-- 🤖 **模型管理** - 灵活的AI模型选择和配置
-- 📊 **实时监控** - 显示识别时长、翻译时长、字符数等关键指标
-- 🎨 **精美界面** - 现代化WebUI设计，支持响应式布局
-- 🔌 **自动服务启动** - 一键启动vLLM等后端服务
+- **实时语音识别** - 基于Vosk的高性能离线语音识别
+- **智能翻译** - 支持vLLM、Ollama、LM Studio等多种翻译引擎
+- **流式传输** - 识别和翻译结果实时流式输出
+- **麦克风管理** - 支持多设备选择和切换
+- **模型管理** - 灵活的AI模型选择和配置
+- **实时监控** - 显示识别时长、翻译时长、字符数等关键指标
+- **精美界面** - 现代化WebUI设计，支持响应式布局
+- **自动服务启动** - 一键启动vLLM等后端服务
 
-## 🛠️ 技术栈
+## 技术栈
 
 ### 后端技术
 
@@ -44,7 +47,7 @@
 - **虚拟环境**: venv
 - **脚本管理**: Windows Batch (.bat)
 
-## 📋 系统要求
+## 系统要求
 
 ### 最低配置
 
@@ -61,7 +64,7 @@
 - **GPU**: NVIDIA GPU (支持CUDA)
 - **存储空间**: 50GB+ SSD
 
-## 🚀 快速开始
+## 快速开始
 
 ### 1. 克隆或下载项目
 
@@ -111,7 +114,7 @@ pip install vllm
 ollama serve
 ```
 
-1. 下载翻译模型：
+3. 下载翻译模型：
 
 ```bash
 ollama pull llama2
@@ -141,7 +144,7 @@ python app.py
 
 打开浏览器，访问：`http://localhost:5001`
 
-## 📁 项目结构
+## 项目结构
 
 ```
 Vox-Engine-Framework/
@@ -205,7 +208,7 @@ Vox-Engine-Framework/
 └── repair.bat                  # 修复脚本
 ```
 
-## 💡 使用指南
+## 使用指南
 
 ### 基础使用流程
 
@@ -218,13 +221,13 @@ Vox-Engine-Framework/
 
 ### 翻译引擎选择
 
-| 引擎            | 特点              | 推荐场景        |
-| ------------- | --------------- | ----------- |
-| **vLLM**      | 高性能、低延迟、支持连续批处理 | 生产环境、需要最佳性能 |
-| **Ollama**    | 简单易用、支持多种模型     | 开发测试、个人使用   |
-| **LM Studio** | 图形化界面、模型管理方便    | 桌面应用场景      |
+| 引擎 | 特点 | 推荐场景 |
+|------|------|----------|
+| **vLLM** | 高性能、低延迟、支持连续批处理 | 生产环境、需要最佳性能 |
+| **Ollama** | 简单易用、支持多种模型 | 开发测试、个人使用 |
+| **LM Studio** | 图形化界面、模型管理方便 | 桌面应用场景 |
 
-## ⚙️ 配置说明
+## 配置说明
 
 ### 主配置文件 (config.json)
 
@@ -247,47 +250,45 @@ Vox-Engine-Framework/
 
 - `PYTORCH_CUDA_ALLOC_CONF`: PyTorch内存分配配置（默认：`expandable_segments:True`）
 
-## 🔧 故障排除
+## 故障排除
 
 ### 常见问题
 
 **Q: 提示 "Ollama 服务未运行"**
-
 - A: 请先运行 `ollama serve` 启动Ollama服务
 
 **Q: 无法加载语音识别模型**
-
 - A: 检查 `models/stt/vosk-model-small-cn-0.22` 目录是否存在
 
 **Q: 麦克风列表为空**
-
 - A: 检查系统麦克风是否正常工作，并确保应用程序有麦克风权限
 
 **Q: 翻译模型列表为空**
-
 - A: 确保已下载对应模型（如 `ollama pull <模型名>`）
 
 **Q: 中文路径问题**
-
 - A: 系统会自动将模型复制到临时目录处理中文路径问题
 
 ### 日志和调试
 
 应用运行时会在控制台输出详细的日志信息，包括：
-
 - 模型加载状态
 - 服务连接状态
 - 识别和翻译进度
 - 错误和警告信息
 
-## 📈 性能优化建议
+## 性能优化建议
 
 1. **使用SSD存储** - 将模型和系统放在SSD上可以大幅提升加载速度
 2. **GPU加速** - 使用支持CUDA的NVIDIA GPU运行vLLM
 3. **合理配置模型** - 根据硬件选择合适大小的模型
 4. **网络优化** - vLLM服务建议本地运行以减少网络延迟
 
-## 🤝 贡献指南
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=monologue82/Vox-Engine-Framework&type=Date)](https://star-history.com/#monologue82/Vox-Engine-Framework&Date)
+
+## 贡献指南
 
 我们欢迎各种形式的贡献！
 
@@ -297,11 +298,11 @@ Vox-Engine-Framework/
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
 
-## 📄 许可证
+## 许可证
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
 
-## 🙏 致谢
+## 致谢
 
 - [Vosk](https://alphacephei.com/vosk/) - 开源语音识别引擎
 - [vLLM](https://github.com/vllm-project/vllm) - 高性能LLM推理引擎
@@ -309,7 +310,7 @@ Vox-Engine-Framework/
 - [Flask](https://flask.palletsprojects.com/) - Python Web框架
 - [GSV-TTS-Lite](https://pypi.org/project/gsv-tts-lite/) - 轻量级TTS引擎
 
-## 📞 联系方式
+## 联系方式
 
 如有问题或建议，欢迎通过以下方式联系：
 
@@ -317,6 +318,6 @@ Vox-Engine-Framework/
 - 发送 Pull Request
 - 在 [哔哩哔哩](https://space.bilibili.com/1741551557) 关注我
 
-***
+---
 
 **注意**: 本项目仅供学习和研究使用。使用AI模型时请遵守相关模型的许可协议。
