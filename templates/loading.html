@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxEngine — Loading</title>
+
+    <!-- Dark Mode (must run before paint) -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Shared Design System -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- ── Page Entrance Overlay ──────────── -->
+    <div class="loading-entrance-overlay" id="loadingEntrance"></div>
+
+    <!-- ── Gradient Orbs ──────────────────── -->
+    <div class="gradient-orb orb-mint" style="width: 420px; height: 420px; top: -120px; left: -80px;"></div>
+    <div class="gradient-orb orb-peach" style="width: 320px; height: 320px; top: 200px; right: -60px;"></div>
+    <div class="gradient-orb orb-lavender" style="width: 360px; height: 360px; bottom: -120px; left: 15%;"></div>
+    <div class="gradient-orb orb-sky" style="width: 280px; height: 280px; bottom: 200px; right: 15%;"></div>
+
+    <div class="loading-screen">
+        <div class="loading-container">
+            <div class="logo-container">
+                <div class="logo-badge">
+                    <i class="fas fa-rocket"></i>
+                    <span>Next Gen AI</span>
+                </div>
+                <h1 class="logo-text">VOXENGINE</h1>
+                <p class="subtitle">Intelligent Speech Processing</p>
+            </div>
+
+            <div class="loading-section">
+                <div class="component-list" id="componentList">
+                    <div class="component-item" data-component="core">
+                        <div class="component-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                        </div>
+                        <span class="component-name">Core Engine</span>
+                        <span class="component-status">
+                            <span class="status-dot loading"></span>
+                            <span class="status-text">Initializing...</span>
+                        </span>
+                    </div>
+                    <div class="component-item" data-component="speech">
+                        <div class="component-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                        </div>
+                        <span class="component-name">Speech Recognition</span>
+                        <span class="component-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Waiting...</span>
+                        </span>
+                    </div>
+                    <div class="component-item" data-component="translation">
+                        <div class="component-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 8l6 6"/>
+                                <path d="M4 14l6-6 2-3"/>
+                                <path d="M2 5h12"/>
+                                <path d="M7 2h1"/>
+                                <path d="M22 22l-5-10-5 10"/>
+                                <path d="M14 18h6"/>
+                            </svg>
+                        </div>
+                        <span class="component-name">Translation Engine</span>
+                        <span class="component-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Waiting...</span>
+                        </span>
+                    </div>
+                    <div class="component-item" data-component="tts">
+                        <div class="component-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                            </svg>
+                        </div>
+                        <span class="component-name">Text-to-Speech</span>
+                        <span class="component-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Waiting...</span>
+                        </span>
+                    </div>
+                    <div class="component-item" data-component="models">
+                        <div class="component-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </div>
+                        <span class="component-name">Model Manager</span>
+                        <span class="component-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Waiting...</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="loading-progress-container">
+                    <div class="loading-progress-bar" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="loading-progress-info">
+                    <span class="loading-progress-text" id="loadingText">Initializing system...</span>
+                    <span class="loading-progress-percentage" id="progressPercentage">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="version-tag">VoxEngine v0.4.1</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        function applyTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        }
+
+        applyTheme();
+
+        // ── Page Entrance Animation ────────────
+        const entranceOverlay = document.getElementById('loadingEntrance');
+        setTimeout(() => {
+            entranceOverlay.classList.add('exit');
+            // Remove overlay after transition completes
+            setTimeout(() => {
+                if (entranceOverlay.parentNode) {
+                    entranceOverlay.parentNode.removeChild(entranceOverlay);
+                }
+            }, 500);
+        }, 150);
+
+        const selectedComponents = JSON.parse(localStorage.getItem('selected_components') || '{}');
+
+        const socket = io();
+
+        let currentProgress = 0;
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const loadingText = document.getElementById('loadingText');
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socket.emit('start_loading', { components: selectedComponents });
+        });
+
+        socket.on('loading_progress', (data) => {
+            const { component, status, message, progress } = data;
+
+            if (component) {
+                const element = document.querySelector(`[data-component="${component}"]`);
+                if (element) {
+                    const statusDot = element.querySelector('.status-dot');
+                    const statusText = element.querySelector('.status-text');
+
+                    if (status === 'loading') {
+                        statusDot.classList.add('loading');
+                        statusDot.classList.remove('complete');
+                        statusText.textContent = 'Loading...';
+                    } else if (status === 'completed') {
+                        statusDot.classList.remove('loading');
+                        statusDot.classList.add('complete');
+                        statusText.textContent = 'Ready';
+                    }
+                }
+            }
+
+            if (message) {
+                loadingText.textContent = message;
+            }
+
+            if (progress !== undefined) {
+                currentProgress = progress;
+                progressBar.style.width = currentProgress + '%';
+                progressPercentage.textContent = Math.round(currentProgress) + '%';
+            }
+        });
+
+        socket.on('loading_complete', () => {
+            completeLoading();
+        });
+
+        socket.on('loading_error', (data) => {
+            const { error } = data;
+            loadingText.textContent = `Error: ${error}`;
+            console.error('Loading error:', error);
+        });
+
+        function completeLoading() {
+            loadingText.textContent = 'System ready!';
+            progressPercentage.textContent = '100%';
+            progressBar.style.width = '100%';
+
+            setTimeout(() => {
+                startPageTransition();
+            }, 500);
+        }
+
+        function startPageTransition() {
+            const loadingContainer = document.querySelector('.loading-container');
+            const logoContainer = document.querySelector('.logo-container');
+
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                overlay.style.background = 'var(--color-canvas)';
+            } else {
+                overlay.style.background = 'var(--color-canvas)';
+            }
+
+            overlay.style.zIndex = '9999';
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 0.6s ease-in-out';
+            document.body.appendChild(overlay);
+
+            logoContainer.style.position = 'fixed';
+            logoContainer.style.top = '50%';
+            logoContainer.style.left = '50%';
+            logoContainer.style.transform = 'translate(-50%, -50%)';
+            logoContainer.style.zIndex = '9997';
+            logoContainer.style.transition = 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1)';
+
+            const allElements = loadingContainer.querySelectorAll('*');
+            allElements.forEach(el => {
+                if (el !== logoContainer) {
+                    el.style.opacity = '0';
+                    el.style.transition = 'opacity 0.4s ease';
+                }
+            });
+
+            setTimeout(() => {
+                logoContainer.style.transform = 'translate(-50%, -50%) scale(0.3)';
+                logoContainer.style.top = '20px';
+                logoContainer.style.left = '20px';
+                logoContainer.style.textAlign = 'left';
+                logoContainer.style.opacity = '0.8';
+            }, 100);
+
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+            }, 300);
+
+            setTimeout(() => {
+                window.location.href = '/app';
+            }, 600);
+        }
+
+        socket.on('connect_error', (error) => {
+            console.error('WebSocket connection error:', error);
+            loadingText.textContent = 'Connection error. Please refresh the page.';
+
+            setTimeout(() => {
+                const statusElement = document.createElement('div');
+                statusElement.style.position = 'fixed';
+                statusElement.style.bottom = '50px';
+                statusElement.style.left = '50%';
+                statusElement.style.transform = 'translateX(-50%)';
+                statusElement.style.padding = '16px 32px';
+                statusElement.style.background = 'var(--color-primary)';
+                statusElement.style.color = '#ffffff';
+                statusElement.style.borderRadius = '16px';
+                statusElement.style.fontFamily = "'Plus Jakarta Sans', sans-serif";
+                statusElement.style.fontWeight = '600';
+                statusElement.style.fontSize = '15px';
+                statusElement.style.cursor = 'pointer';
+                statusElement.style.boxShadow = 'var(--shadow-elevated)';
+                statusElement.style.transition = 'all 0.3s ease';
+                statusElement.textContent = 'Refresh Page';
+
+                statusElement.addEventListener('click', () => {
+                    window.location.reload();
+                });
+
+                statusElement.addEventListener('mouseenter', () => {
+                    statusElement.style.transform = 'translateX(-50%) translateY(-2px)';
+                });
+
+                statusElement.addEventListener('mouseleave', () => {
+                    statusElement.style.transform = 'translateX(-50%)';
+                });
+
+                document.body.appendChild(statusElement);
+            }, 2000);
+        });
+
+        setTimeout(() => {
+            if (!socket.connected) {
+                console.error('WebSocket connection timeout');
+                loadingText.textContent = 'Connection timeout. Please refresh the page.';
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

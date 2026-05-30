@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Page entrance animation - complements loading page exit */
+        .page-entrance-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--background);
+            z-index: 9999;
+            transform: translateY(0);
+            transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .page-entrance-overlay.exit {
+            transform: translateY(-100%);
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            margin: 40px auto;
+            padding: 0 20px;
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease-out 0.3s, transform 0.5s ease-out 0.3s;
+        }
+
+        .container.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header h1 i {
+            color: var(--primary-color);
+            font-size: 2rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .card {
+            margin-bottom: 30px;
+            animation: slideInUp 0.5s ease-out;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--glass-border);
+            border-radius: 10px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: var(--glass-text);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group input[type="number"]:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(78, 205, 196, 0.2);
+        }
+
+        .form-group input[type="text"]::placeholder,
+        .form-group input[type="number"]::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-group label:hover {
+            color: var(--primary-color);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: 500;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .status-badge.success { background: rgba(34,197,94,0.12); color: #16a34a; }
+        .status-badge.warning { background: rgba(245,158,11,0.12); color: #d97706; }
+        .status-badge.error   { background: rgba(239,68,68,0.12);  color: #dc2626; }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 40px;
+            animation: fadeIn 0.5s ease-out 0.2s both;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            animation: slideInDown 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow) 0px 4px 12px 0px;
+        }
+
+        .status.success {
+            border-left: 4px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .status.error {
+            border-left: 4px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        .status i {
+            font-size: 1.2rem;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                margin: 20px auto;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--component-bg);
+            border: 1px solid var(--component-border);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--component-shadow);
+            z-index: 100;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-toggle i {
+            font-size: 1.2rem;
+            color: var(--text-primary);
+        }
+
+        .language-options-inline {
+            display: flex;
+            gap: 8px;
+        }
+
+        .language-btn {
+            min-width: 100px;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .language-btn.active {
+            background: var(--color-primary, #292524);
+            color: white;
+            border-color: var(--color-primary, #292524);
+        }
+
+        .language-btn i {
+            margin-right: 4px;
+        }
+        </style>
+</head>
+<body>
+    <!-- Animated background particles - inspired by loading page -->
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- Page entrance overlay for smooth transition from loading -->
+    <div class="page-entrance-overlay" id="pageEntrance"></div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="container">
+        <!-- Header & VoxEngine Logo -->
+        <div class="header">
+            <h1 class="voxengine-logo">VOXENGINE</h1>
+            <p class="header-subtitle">系统设置</p>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-sliders"></i> 高级设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable_system_monitor">
+                        <label for="enable_system_monitor">启用系统监控面板</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-microphone"></i> 语音识别设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="default_microphone">默认麦克风</label>
+                    <select id="default_microphone">
+                        <option value="auto">自动选择</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="speech_model">默认语音模型</label>
+                    <select id="speech_model">
+                        <option value="small-model">Small Model</option>
+                        <option value="full-model">Full Model</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="sample_rate">采样率 (Hz)</label>
+                    <select id="sample_rate">
+                        <option value="16000">16000</option>
+                        <option value="8000">8000</option>
+                        <option value="22050">22050</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-language"></i> 翻译设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="default_translation_provider">默认翻译服务</label>
+                    <select id="default_translation_provider">
+                        <option value="lps">LPS (Local Python Server)</option>
+                        <option value="lmstudio">LM Studio</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="default_translation_model">默认翻译模型</label>
+                    <select id="default_translation_model">
+                        <option value="">Loading models...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section" id="lps-section">
+            <h2 class="section-title"><i class="fas fa-server"></i> LPS 设置 <span id="lps-status-badge"></span></h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="lps_enabled" checked>
+                        <label for="lps_enabled">启用 LPS</label>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="lps_models_dir">模型目录</label>
+                    <input type="text" id="lps_models_dir" placeholder="models/translate">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="lps_backend">后端模式</label>
+                    <select id="lps_backend">
+                        <option value="openai_compatible">OpenAI 兼容 API</option>
+                        <option value="llama_cpp">llama.cpp (本地 GGUF)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="lps_openai_url">OpenAI API URL</label>
+                    <input type="text" id="lps_openai_url" placeholder="http://localhost:8080/v1">
+                </div>
+            </div>
+            <div class="control-row" id="lps-llama-cpp-params">
+                <div class="control-group">
+                    <label for="lps_n_ctx">上下文长度 (n_ctx)</label>
+                    <input type="number" id="lps_n_ctx" placeholder="2048" min="256" max="32768" step="256">
+                </div>
+                <div class="control-group">
+                    <label for="lps_n_threads">CPU 线程数 (n_threads)</label>
+                    <input type="number" id="lps_n_threads" placeholder="4" min="1" max="32">
+                </div>
+            </div>
+            <div class="control-row" id="lps-llama-cpp-params-2">
+                <div class="control-group">
+                    <label for="lps_n_gpu_layers">GPU 层数 (n_gpu_layers)</label>
+                    <input type="number" id="lps_n_gpu_layers" placeholder="0" min="0" max="999">
+                </div>
+                <div class="control-group">
+                    <label for="lps_temperature">Temperature</label>
+                    <input type="number" id="lps_temperature" placeholder="0.3" min="0" max="2" step="0.1">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="lps_max_tokens">最大 Token 数</label>
+                    <input type="number" id="lps_max_tokens" placeholder="512" min="64" max="4096">
+                </div>
+                <div class="control-group">
+                    <label for="lps_top_p">Top P</label>
+                    <input type="number" id="lps_top_p" placeholder="0.8" min="0" max="1" step="0.05">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="lps_verbose">
+                        <label for="lps_verbose">详细日志输出</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-volume-up"></i> TTS 设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable_tts">
+                        <label for="enable_tts">启用文本转语音</label>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="default_tts_model">默认 TTS 模型</label>
+                    <select id="default_tts_model">
+                        <option value="s2Gv2ProPlus">SoVITS s2Gv2ProPlus</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-network-wired"></i> 网络设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="server_port">服务器端口</label>
+                    <input type="number" id="server_port" placeholder="5001">
+                </div>
+                <div class="control-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable_cors">
+                        <label for="enable_cors">启用 CORS 跨域请求</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2 class="section-title"><i class="fas fa-globe"></i> 语言设置</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label>界面语言</label>
+                    <div class="language-options-inline">
+                        <button class="btn btn-small language-btn" data-language="zh-CN"><i class="fas fa-check"></i> 中文</button>
+                        <button class="btn btn-small language-btn" data-language="en-US">English</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-secondary" onclick="window.location.href='/app'">
+                <i class="fas fa-arrow-left"></i> 返回应用
+            </button>
+            <button class="btn btn-primary" onclick="saveSettings()">
+                <i class="fas fa-save"></i> 保存设置
+            </button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+
+
+    </div>
+
+    <!-- Immediately set theme before anything else -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+
+    <script>
+        // Background particles animation
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            if (!particlesContainer) return;
+
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Language management
+        let translations = {};
+        
+        // Load language configuration
+        async function loadTranslations() {
+            try {
+                const response = await fetch('/api/languages');
+                translations = await response.json();
+                updatePageLanguage();
+            } catch (error) {
+                console.error('Failed to load translations:', error);
+            }
+        }
+        
+        // Get current language
+        function getCurrentLanguage() {
+            return localStorage.getItem('language') || 'zh-CN';
+        }
+        
+        // Update page language
+        function updatePageLanguage() {
+            const lang = getCurrentLanguage();
+            const langData = translations[lang]?.app || translations['zh-CN']?.app;
+            
+            if (!langData) return;
+            
+            // Update page title
+            document.title = langData.title || 'VoxEngine - System Settings';
+            
+
+        }
+
+        function setupLanguageSelector() {
+            const languageBtns = document.querySelectorAll('.language-btn');
+            const currentLang = getCurrentLanguage();
+
+            languageBtns.forEach(btn => {
+                const lang = btn.getAttribute('data-language');
+                if (lang === currentLang) {
+                    btn.classList.add('active');
+                }
+                btn.addEventListener('click', function() {
+                    const language = this.getAttribute('data-language');
+                    localStorage.setItem('language', language);
+                    location.reload();
+                });
+            });
+        }
+
+        // Toast notification
+        function showToast(message, type = 'info', duration = 3000) {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+                <div class="toast-content">
+                    <div class="toast-title">${type === 'success' ? '成功' : type === 'error' ? '错误' : '信息'}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Close button
+            const closeButton = toast.querySelector('.toast-close');
+            closeButton.addEventListener('click', function() {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 300);
+            });
+
+            // Auto close
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // Page entrance animation
+        window.addEventListener('DOMContentLoaded', function() {
+            // Create particles
+            createParticles();
+
+            // Setup language selector
+            setupLanguageSelector();
+
+            // Entrance animation
+            setTimeout(function() {
+                const overlay = document.getElementById('pageEntrance');
+                if (overlay) {
+                    overlay.classList.add('exit');
+                }
+                
+                // Show container
+                const container = document.querySelector('.container');
+                if (container) {
+                    container.classList.add('active');
+                }
+            }, 100);
+
+            // Load translations and settings
+            loadTranslations();
+            loadSettings();
+            
+            document.getElementById('default_translation_provider').addEventListener('change', function() {
+                var lpsSection = document.getElementById('lps-section');
+                if (this.value === 'lps') {
+                    if (lpsSection) lpsSection.style.display = '';
+                    loadSettings();
+                } else {
+                    if (lpsSection) lpsSection.style.display = 'none';
+                    updateModelDropdown('lmstudio', [], '');
+                }
+            });
+            
+            var lpsBackendEl = document.getElementById('lps_backend');
+            if (lpsBackendEl) {
+                lpsBackendEl.addEventListener('change', toggleLPSBackendParams);
+            }
+        });
+
+        // 加载当前设置
+
+        function updateLpsStatus(available, modelCount) {
+            const badge = document.getElementById('lps-status-badge');
+            if (!badge) return;
+            if (available && modelCount > 0) {
+                badge.innerHTML = '<span class="status-badge success">' + modelCount + ' 个模型可用</span>';
+            } else if (available) {
+                badge.innerHTML = '<span class="status-badge warning">无模型可用</span>';
+            } else {
+                badge.innerHTML = '<span class="status-badge error">llama-cpp-python 未安装</span>';
+            }
+        }
+
+        function updateModelDropdown(provider, lpsModels, currentModel) {
+            var select = document.getElementById('default_translation_model');
+            select.innerHTML = '';
+            
+            if (provider === 'lps') {
+                if (lpsModels && lpsModels.length > 0) {
+                    for (var i = 0; i < lpsModels.length; i++) {
+                        var m = lpsModels[i];
+                        var opt = document.createElement('option');
+                        opt.value = m.model_path;
+                        opt.textContent = m.vendor + '/' + m.model_name + ' (' + m.size_mb + 'MB)';
+                        select.appendChild(opt);
+                    }
+                } else {
+                    var opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No GGUF models found in ' + (document.getElementById('lps_models_dir')?.value || 'models/translate');
+                    select.appendChild(opt);
+                }
+            } else {
+                var opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Auto-detect from LM Studio';
+                select.appendChild(opt);
+            }
+            
+            if (currentModel) {
+                select.value = currentModel;
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                
+                // 高级设置
+                document.getElementById('enable_system_monitor').checked = settings.system?.enable_monitor || false;
+                
+                // 语音识别设置
+                document.getElementById('default_microphone').value = settings.speech?.default_microphone || 'auto';
+                document.getElementById('speech_model').value = settings.speech?.model || 'small-model';
+                document.getElementById('sample_rate').value = settings.speech?.sample_rate || '16000';
+                
+                // 翻译设置
+                document.getElementById('default_translation_provider').value = settings.translation?.default_provider || 'lps';
+                
+                // LPS 设置
+                const lps = settings.lps || {};
+                document.getElementById('lps_enabled').checked = lps.enabled !== false;
+                document.getElementById('lps_models_dir').value = lps.models_dir || 'models/translate';
+                document.getElementById('lps_backend').value = lps.backend || 'openai_compatible';
+                document.getElementById('lps_openai_url').value = lps.openai_url || 'http://localhost:8080/v1';
+                document.getElementById('lps_n_ctx').value = lps.n_ctx || 2048;
+                document.getElementById('lps_n_threads').value = lps.n_threads || 4;
+                document.getElementById('lps_n_gpu_layers').value = lps.n_gpu_layers || 0;
+                document.getElementById('lps_temperature').value = lps.temperature || 0.3;
+                document.getElementById('lps_max_tokens').value = lps.max_tokens || 512;
+                document.getElementById('lps_top_p').value = lps.top_p || 0.8;
+                document.getElementById('lps_verbose').checked = lps.verbose || false;
+                
+                toggleLPSBackendParams();
+                
+                const lpsAvailable = settings.lps_available || false;
+                const lpsModels = settings.lps_models || [];
+                updateModelDropdown(settings.translation?.default_provider || 'lps', lpsModels, settings.translation?.default_model || '');
+                updateLpsStatus(lpsAvailable, lpsModels.length);
+                
+                // TTS 设置
+                document.getElementById('enable_tts').checked = settings.tts?.enabled || false;
+                document.getElementById('default_tts_model').value = settings.tts?.default_model || 's2Gv2ProPlus';
+                
+                // 网络设置
+                document.getElementById('server_port').value = settings.server?.port || '5001';
+                document.getElementById('enable_cors').checked = settings.server?.enable_cors || true;
+            } catch (error) {
+                console.error('加载设置失败:', error);
+                showToast('加载设置失败', 'error');
+            }
+        }
+
+        function toggleLPSBackendParams() {
+            const backend = document.getElementById('lps_backend').value;
+            const row1 = document.getElementById('lps-llama-cpp-params');
+            const row2 = document.getElementById('lps-llama-cpp-params-2');
+            const isLlamaCpp = backend === 'llama_cpp';
+            if (row1) row1.style.display = isLlamaCpp ? '' : 'none';
+            if (row2) row2.style.display = isLlamaCpp ? '' : 'none';
+        }
+
+        // 保存设置
+        async function saveSettings() {
+            const settings = {
+                translation: {
+                    default_provider: document.getElementById('default_translation_provider').value,
+                    default_model: document.getElementById('default_translation_model').value
+                },
+                
+                lps: {
+                    enabled: document.getElementById('lps_enabled').checked,
+                    backend: document.getElementById('lps_backend').value,
+                    openai_url: document.getElementById('lps_openai_url').value,
+                    models_dir: document.getElementById('lps_models_dir').value,
+                    default_model: document.getElementById('default_translation_model').value,
+                    n_ctx: parseInt(document.getElementById('lps_n_ctx').value) || 2048,
+                    n_threads: parseInt(document.getElementById('lps_n_threads').value) || 4,
+                    n_gpu_layers: parseInt(document.getElementById('lps_n_gpu_layers').value) || 0,
+                    temperature: parseFloat(document.getElementById('lps_temperature').value) || 0.3,
+                    max_tokens: parseInt(document.getElementById('lps_max_tokens').value) || 512,
+                    top_p: parseFloat(document.getElementById('lps_top_p').value) || 0.8,
+                    verbose: document.getElementById('lps_verbose').checked
+                },
+                
+                // 系统设置
+                system: {
+                    enable_monitor: document.getElementById('enable_system_monitor').checked
+                },
+                
+                // 语音识别设置
+                speech: {
+                    default_microphone: document.getElementById('default_microphone').value,
+                    model: document.getElementById('speech_model').value,
+                    sample_rate: document.getElementById('sample_rate').value
+                },
+                
+                // TTS 设置
+                tts: {
+                    enabled: document.getElementById('enable_tts').checked,
+                    default_model: document.getElementById('default_tts_model').value
+                },
+                
+                // 网络设置
+                server: {
+                    port: document.getElementById('server_port').value,
+                    enable_cors: document.getElementById('enable_cors').checked
+                }
+            };
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('设置保存成功！', 'success');
+                } else {
+                    showToast('保存失败: ' + (result.error || '未知错误'), 'error');
+                }
+            } catch (error) {
+                console.error('保存设置失败:', error);
+                showToast('保存失败: 网络错误', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

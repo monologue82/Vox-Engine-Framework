@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASR Debug - Streaming Recognition</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .waveform-bar {
+            display: inline-block;
+            width: 3px;
+            margin: 0 1px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-muted-soft) 100%);
+            transition: height 0.05s ease;
+        }
+        .waveform-bar.active {
+            background: linear-gradient(180deg, var(--color-success) 0%, var(--color-primary) 100%);
+        }
+    </style>
+</head>
+<body>
+    <!-- Gradient Orbs -->
+    <div class="gradient-orb orb-mint" style="width:400px;height:400px;top:-100px;left:-100px;"></div>
+    <div class="gradient-orb orb-peach" style="width:350px;height:350px;top:50%;right:-80px;"></div>
+    <div class="gradient-orb orb-lavender" style="width:300px;height:300px;bottom:-80px;left:30%;"></div>
+    <div class="gradient-orb orb-sky" style="width:250px;height:250px;top:20%;left:50%;"></div>
+
+    <div class="container container-wide" style="position:relative;z-index:1;padding-top:32px;padding-bottom:32px;">
+        <header class="mb-lg anim-fadeInUp">
+            <h1 class="display-md mb-xs"><i class="fas fa-microphone-lines"></i> ASR Streaming Debug</h1>
+            <p class="body-md text-muted">Real-time speech recognition with streaming output</p>
+        </header>
+
+        <div class="grid grid-2">
+            <!-- Controls Card -->
+            <div class="card anim-fadeInUp anim-delay-1">
+                <div class="card-header">
+                    <i class="fas fa-sliders-h"></i>
+                    <h2>Controls</h2>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:20px;">
+                    <div>
+                        <label class="form-label" for="mic-select">Microphone</label>
+                        <select id="mic-select" class="form-input">
+                            <option value="">Loading microphones...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="device-select">Device</label>
+                        <select id="device-select" class="form-input">
+                            <option value="auto">Auto Detect</option>
+                            <option value="cuda:0">GPU (CUDA)</option>
+                            <option value="cpu">CPU</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="language-select">Language</label>
+                        <select id="language-select" class="form-input">
+                            <option value="">Auto Detect</option>
+                            <option value="zh">Chinese</option>
+                            <option value="en">English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="ko">Korean</option>
+                            <option value="yue">Cantonese</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="es">Spanish</option>
+                        </select>
+                    </div>
+
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                        <button id="start-btn" class="btn btn-primary" style="flex:1;min-width:100px;">
+                            <i class="fas fa-play"></i> Start
+                        </button>
+                        <button id="stop-btn" class="btn btn-secondary" disabled style="flex:1;min-width:100px;">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                        <button id="clear-btn" class="btn btn-danger" style="flex:1;min-width:100px;">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+
+                    <div id="status-indicator" class="status-indicator disconnected">
+                        <i class="fas fa-circle"></i>
+                        <span>Disconnected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio Visualization Card -->
+            <div class="card anim-fadeInUp anim-delay-2">
+                <div class="card-header">
+                    <i class="fas fa-waveform"></i>
+                    <h2>Audio Visualization</h2>
+                </div>
+
+                <div id="waveform-container" style="background:var(--color-canvas-soft);border-radius:12px;padding:24px;min-height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    <div id="waveform"></div>
+                </div>
+
+                <div class="mt-md" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--color-canvas-soft);border-radius:8px;">
+                    <span class="caption">Audio Level:</span>
+                    <div class="progress-bar" style="flex:1;">
+                        <div class="progress-fill" id="audio-level-fill" style="width:0%;"></div>
+                    </div>
+                    <span class="caption" id="audio-level-value" style="min-width:40px;text-align:right;">0%</span>
+                </div>
+            </div>
+
+            <!-- Recognition Result Card -->
+            <div class="card anim-fadeInUp anim-delay-3">
+                <div class="card-header">
+                    <i class="fas fa-file-text"></i>
+                    <h2>Recognition Result</h2>
+                </div>
+
+                <div class="output-panel" style="min-height:150px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <span class="caption" id="result-timestamp">--:--:--</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="caption">Confidence:</span>
+                            <div class="progress-bar" style="width:80px;">
+                                <div class="progress-fill" id="confidence-fill" style="width:0%;"></div>
+                            </div>
+                            <span class="caption" id="confidence-value">0%</span>
+                        </div>
+                    </div>
+                    <div class="body-md" id="result-text">
+                        <span class="text-muted">Waiting for audio...</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-3 mt-lg">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-segments">0</div>
+                        <div class="stat-label">Segments</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-chars">0</div>
+                        <div class="stat-label">Characters</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-duration">0s</div>
+                        <div class="stat-label">Duration</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debug Log Card -->
+            <div class="card anim-fadeInUp anim-delay-4">
+                <div class="card-header">
+                    <i class="fas fa-terminal"></i>
+                    <h2>Debug Log</h2>
+                </div>
+
+                <div class="log-panel" id="log-panel"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        let isRecording = false;
+        let mediaStream = null;
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+        let waveformInterval = null;
+
+        const micSelect = document.getElementById('mic-select');
+        const deviceSelect = document.getElementById('device-select');
+        const languageSelect = document.getElementById('language-select');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const statusIndicator = document.getElementById('status-indicator');
+        const waveformContainer = document.getElementById('waveform-container');
+        const waveform = document.getElementById('waveform');
+        const audioLevelFill = document.getElementById('audio-level-fill');
+        const audioLevelValue = document.getElementById('audio-level-value');
+        const resultText = document.getElementById('result-text');
+        const resultTimestamp = document.getElementById('result-timestamp');
+        const confidenceFill = document.getElementById('confidence-fill');
+        const confidenceValue = document.getElementById('confidence-value');
+        const logPanel = document.getElementById('log-panel');
+        const statSegments = document.getElementById('stat-segments');
+        const statChars = document.getElementById('stat-chars');
+        const statDuration = document.getElementById('stat-duration');
+
+        let segmentCount = 0;
+        let charCount = 0;
+        let startTime = null;
+        let durationInterval = null;
+        let accumulatedResults = [];
+        let lastResultText = '';
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function updateStatus(status) {
+            statusIndicator.className = `status-indicator ${status}`;
+            const icon = statusIndicator.querySelector('i');
+            const text = statusIndicator.querySelector('span');
+
+            switch(status) {
+                case 'connected':
+                    icon.className = 'fas fa-circle';
+                    text.textContent = 'Connected';
+                    break;
+                case 'disconnected':
+                    icon.className = 'fas fa-circle';
+                    text.textContent = 'Disconnected';
+                    break;
+                case 'processing':
+                    icon.className = 'fas fa-circle fa-spin';
+                    text.textContent = 'Processing...';
+                    break;
+            }
+        }
+
+        async function loadMicrophones() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const mics = devices.filter(d => d.kind === 'audioinput');
+
+                micSelect.innerHTML = '';
+                mics.forEach((mic, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = mic.label || `Microphone ${index + 1}`;
+                    micSelect.appendChild(option);
+                });
+
+                addLog(`Loaded ${mics.length} microphone(s)`, 'success');
+            } catch (error) {
+                addLog(`Failed to load microphones: ${error}`, 'error');
+            }
+        }
+
+        function initWaveform() {
+            waveform.innerHTML = '';
+            for (let i = 0; i < 60; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'waveform-bar';
+                bar.style.height = `${Math.random() * 30 + 10}px`;
+                waveform.appendChild(bar);
+            }
+        }
+
+        function updateWaveform() {
+            if (!analyser || !dataArray) return;
+
+            analyser.getByteFrequencyData(dataArray);
+
+            const bars = waveform.querySelectorAll('.waveform-bar');
+            bars.forEach((bar, index) => {
+                const value = dataArray[index * 4] || 0;
+                const height = Math.max(8, (value / 255) * 80);
+                bar.style.height = `${height}px`;
+                bar.className = `waveform-bar ${value > 30 ? 'active' : ''}`;
+
+                const level = (value / 255) * 100;
+                audioLevelFill.style.width = `${level}%`;
+                audioLevelValue.textContent = `${Math.round(level)}%`;
+            });
+        }
+
+        function updateDuration() {
+            if (!startTime) return;
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            statDuration.textContent = `${elapsed}s`;
+        }
+
+        socket.on('connect', () => {
+            addLog('Connected to server', 'success');
+            updateStatus('connected');
+        });
+
+        socket.on('disconnect', () => {
+            addLog('Disconnected from server', 'warning');
+            updateStatus('disconnected');
+            if (isRecording) {
+                stopRecording();
+            }
+        });
+
+        socket.on('recognition_result', (data) => {
+            const text = data.text || '';
+            const confidence = data.confidence || 0;
+            const language = data.language || 'zh';
+            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+
+            if (text && text !== lastResultText) {
+                accumulatedResults.push({
+                    text: text,
+                    confidence: confidence,
+                    timestamp: timestamp,
+                    language: language
+                });
+
+                const displayText = accumulatedResults.map(r => r.text).join('');
+                resultText.textContent = displayText;
+
+                lastResultText = text;
+                segmentCount++;
+                charCount += text.length;
+                statSegments.textContent = segmentCount;
+                statChars.textContent = charCount;
+
+                addLog(`Result: "${text}" (confidence: ${confidence}%)`, 'data');
+            }
+
+            resultTimestamp.textContent = timestamp;
+            confidenceFill.style.width = `${confidence}%`;
+            confidenceValue.textContent = `${Math.round(confidence)}%`;
+        });
+
+        socket.on('audio_level', (data) => {
+            const level = data.level || 0;
+            audioLevelFill.style.width = `${level}%`;
+            audioLevelValue.textContent = `${Math.round(level)}%`;
+        });
+
+        socket.on('log', (data) => {
+            addLog(data.message, data.type || 'info');
+        });
+
+        socket.on('error', (data) => {
+            addLog(`Error: ${data.message}`, 'error');
+            if (isRecording) {
+                stopRecording();
+            }
+        });
+
+        async function startRecording() {
+            if (isRecording) return;
+
+            try {
+                addLog('startRecording called', 'info');
+
+                const micIndex = parseInt(micSelect.value) || 0;
+                const device = deviceSelect.value;
+
+                addLog(`Starting recording - Mic: ${micIndex}, Device: ${device}`, 'info');
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    addLog('getUserMedia is not supported in this browser', 'error');
+                    addLog('Please use HTTPS or a modern browser', 'warning');
+                    return;
+                }
+
+                addLog('getUserMedia is supported', 'info');
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioDevices = devices.filter(d => d.kind === 'audioinput');
+
+                if (audioDevices.length === 0) {
+                    addLog('No audio input devices found', 'error');
+                    return;
+                }
+
+                let deviceId = 'default';
+                if (micIndex > 0 && micIndex < audioDevices.length) {
+                    deviceId = audioDevices[micIndex].deviceId;
+                }
+
+                const constraints = {
+                    audio: {
+                        deviceId: deviceId,
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                };
+
+                addLog(`Requesting microphone access with deviceId: ${deviceId}`, 'info');
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                addLog('Microphone access granted', 'success');
+                addLog(`MediaStream tracks: ${mediaStream.getTracks().length}`, 'info');
+
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                addLog(`AudioContext created, sampleRate: ${audioContext.sampleRate}`, 'info');
+
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 128;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                addLog(`Analyser created, fftSize: ${analyser.fftSize}, frequencyBinCount: ${analyser.frequencyBinCount}`, 'info');
+
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                source.connect(analyser);
+                addLog('Audio source connected to analyser', 'info');
+
+                addLog(`AudioWorklet available: ${!!audioContext.createAudioWorklet}`, 'info');
+                addLog(`ScriptProcessor available: ${!!audioContext.createScriptProcessor}`, 'info');
+
+                if (audioContext.createAudioWorklet) {
+                    try {
+                        await audioContext.audioWorklet.addModule('/static/audio-processor.js');
+                        const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+                        source.connect(audioWorkletNode);
+                        audioWorkletNode.connect(audioContext.destination);
+
+                        audioWorkletNode.port.onmessage = (event) => {
+                            if (event.data.type === 'audioData') {
+                                socket.emit('stream_audio', {
+                                    data: Array.from(event.data.buffer),
+                                    device: device,
+                                    language: languageSelect.value || null
+                                });
+                            }
+                        };
+                        addLog('Using AudioWorklet for streaming', 'info');
+                    } catch (workletError) {
+                        addLog(`AudioWorklet not supported: ${workletError.message}, falling back to manual capture`, 'warning');
+                        setupManualAudioCapture(source, device);
+                    }
+                } else if (audioContext.createScriptProcessor) {
+                    addLog('Using ScriptProcessor for streaming', 'info');
+                    const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+                    source.connect(scriptProcessor);
+                    scriptProcessor.connect(audioContext.destination);
+
+                    scriptProcessor.onaudioprocess = (event) => {
+                        const inputBuffer = event.inputBuffer;
+                        const channelData = inputBuffer.getChannelData(0);
+                        const int16Array = new Int16Array(channelData.length);
+
+                        for (let i = 0; i < channelData.length; i++) {
+                            int16Array[i] = Math.max(-32768, Math.min(32767, channelData[i] * 32768));
+                        }
+
+                        socket.emit('stream_audio', {
+                            data: Array.from(int16Array),
+                            device: device,
+                            language: languageSelect.value || null
+                        });
+                    };
+                } else {
+                    addLog('Neither AudioWorklet nor ScriptProcessor available, using manual capture', 'warning');
+                    setupManualAudioCapture(source, device);
+                }
+
+                isRecording = true;
+                startTime = Date.now();
+                updateStatus('processing');
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                waveformInterval = setInterval(updateWaveform, 50);
+                durationInterval = setInterval(updateDuration, 1000);
+
+                addLog('Recording started successfully', 'success');
+
+            } catch (error) {
+                addLog(`Failed to start recording: ${error.message || error}`, 'error');
+                if (error.name === 'NotAllowedError') {
+                    addLog('Microphone access was denied. Please enable microphone permissions in your browser settings.', 'warning');
+                } else if (error.name === 'NotFoundError') {
+                    addLog('No microphone device found. Please connect a microphone.', 'warning');
+                }
+                stopRecording();
+            }
+        }
+
+        function setupManualAudioCapture(source, device) {
+            const targetSampleRate = 16000;
+            const bufferSize = 4096;
+            const buffer = [];
+            let captureCount = 0;
+
+            const resampleRatio = targetSampleRate / audioContext.sampleRate;
+            addLog(`setupManualAudioCapture called, target rate: ${targetSampleRate}, actual rate: ${audioContext.sampleRate}, ratio: ${resampleRatio.toFixed(2)}`, 'info');
+
+            const captureInterval = setInterval(() => {
+                if (!isRecording) {
+                    clearInterval(captureInterval);
+                    addLog('Recording stopped, clearing capture interval', 'info');
+                    return;
+                }
+
+                try {
+                    analyser.getByteTimeDomainData(dataArray);
+
+                    let floatArray = new Float32Array(dataArray.length);
+                    for (let i = 0; i < dataArray.length; i++) {
+                        floatArray[i] = (dataArray[i] - 128) / 128;
+                    }
+
+                    if (resampleRatio !== 1) {
+                        floatArray = resampleAudio(floatArray, resampleRatio);
+                    }
+
+                    buffer.push(...floatArray);
+                    captureCount++;
+
+                    if (buffer.length >= bufferSize) {
+                        const int16Array = new Int16Array(bufferSize);
+                        for (let i = 0; i < bufferSize; i++) {
+                            int16Array[i] = Math.max(-32768, Math.min(32767, buffer[i] * 32768));
+                        }
+
+                        addLog(`Sending audio data: ${int16Array.length} samples (capture #${captureCount})`, 'data');
+                        socket.emit('stream_audio', {
+                            data: Array.from(int16Array),
+                            device: device,
+                            language: languageSelect.value || null
+                        });
+
+                        buffer.splice(0, bufferSize);
+                    }
+                } catch (e) {
+                    addLog(`Error in capture loop: ${e.message}`, 'error');
+                    clearInterval(captureInterval);
+                }
+            }, 10);
+
+            addLog('Using manual audio capture', 'info');
+        }
+
+        function resampleAudio(input, ratio) {
+            const outputLength = Math.round(input.length * ratio);
+            const output = new Float32Array(outputLength);
+
+            for (let i = 0; i < outputLength; i++) {
+                const index = i / ratio;
+                const leftIndex = Math.floor(index);
+                const rightIndex = Math.min(leftIndex + 1, input.length - 1);
+                const fraction = index - leftIndex;
+
+                output[i] = input[leftIndex] * (1 - fraction) + input[rightIndex] * fraction;
+            }
+
+            return output;
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+
+            isRecording = false;
+
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+                analyser = null;
+                dataArray = null;
+            }
+
+            if (waveformInterval) {
+                clearInterval(waveformInterval);
+                waveformInterval = null;
+            }
+
+            if (durationInterval) {
+                clearInterval(durationInterval);
+                durationInterval = null;
+            }
+
+            socket.emit('stop_stream');
+
+            updateStatus('connected');
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+
+            addLog('Recording stopped', 'info');
+        }
+
+        function clearAll() {
+            resultText.textContent = 'Waiting for audio...';
+            resultTimestamp.textContent = '--:--:--';
+            confidenceFill.style.width = '0%';
+            confidenceValue.textContent = '0%';
+            segmentCount = 0;
+            charCount = 0;
+            startTime = null;
+            statSegments.textContent = '0';
+            statChars.textContent = '0';
+            statDuration.textContent = '0s';
+            audioLevelFill.style.width = '0%';
+            audioLevelValue.textContent = '0%';
+            accumulatedResults = [];
+            lastResultText = '';
+
+            const bars = waveform.querySelectorAll('.waveform-bar');
+            bars.forEach(bar => {
+                bar.style.height = `${Math.random() * 30 + 10}px`;
+                bar.className = 'waveform-bar';
+            });
+
+            logPanel.innerHTML = '';
+            addLog('All data cleared', 'info');
+        }
+
+        startBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+        clearBtn.addEventListener('click', clearAll);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMicrophones();
+            initWaveform();
+            addLog('ASR Debug page loaded', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "theme": "dark",
+  "language": "en-US",
+  "downloadSource": "github",
+  "translation": {
+    "provider": "lmstudio",
+    "model": "",
+    "stylePreset": "",
+    "customStyle": ""
+  },
+  "tts": {
+    "voice": "en-US-JennyNeural",
+    "language": "english",
+    "rate": 0,
+    "autoPlay": true,
+    "streaming": true
+  }
+}

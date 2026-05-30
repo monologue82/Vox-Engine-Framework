@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Only Debug — ASR → TTS Direct</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .pipeline-container {
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px 0; gap: 24px; position: relative; z-index: 1;
+        }
+        .pipeline-node {
+            display: flex; flex-direction: column; align-items: center;
+            text-align: center; max-width: 180px;
+        }
+        .pipeline-node-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 8px; font-size: 20px;
+            background: var(--color-canvas-soft); border: 2px solid var(--color-hairline);
+            color: var(--color-muted); transition: all 0.3s ease;
+        }
+        .pipeline-node.active .pipeline-node-icon {
+            background: var(--color-surface-card); border-color: var(--color-primary);
+            color: var(--color-primary); box-shadow: var(--shadow-hover);
+        }
+        .pipeline-node.complete .pipeline-node-icon {
+            background: var(--color-surface-card); border-color: var(--color-success);
+            color: var(--color-success);
+        }
+        .pipeline-node.error .pipeline-node-icon {
+            border-color: var(--color-error); color: var(--color-error);
+        }
+        .pipeline-node-label { font-size: 14px; font-weight: 600; color: var(--color-body-strong); }
+        .pipeline-node-status { font-size: 12px; color: var(--color-muted); }
+        .pipeline-arrow {
+            font-size: 20px; color: var(--color-hairline); flex-shrink: 0;
+            transition: color 0.3s ease;
+        }
+        .pipeline-arrow.flowing { color: var(--color-primary); }
+
+        .waveform-bar {
+            display: inline-block; width: 3px; margin: 0 1px; border-radius: 4px;
+            background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-muted-soft) 100%);
+            transition: height 0.05s ease;
+        }
+        .waveform-bar.active {
+            background: linear-gradient(180deg, var(--color-success) 0%, var(--color-primary) 100%);
+        }
+
+        .asr-output {
+            min-height: 80px; padding: 16px;
+            background: rgba(139, 92, 246, 0.04); border-radius: 12px;
+            border-left: 3px solid var(--color-data);
+            font-size: 1.05rem; line-height: 1.7; color: var(--color-body-strong);
+        }
+        .asr-output .placeholder { color: var(--color-muted-soft); font-style: italic; }
+
+        .audio-player-section {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; background: var(--color-canvas-soft); border-radius: 12px;
+        }
+        .audio-player-section.hidden { display: none; }
+        .btn-round {
+            width: 40px; height: 40px; border-radius: 50%; border: none;
+            background: var(--color-primary); color: #fff; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; transition: all 0.2s ease; flex-shrink: 0;
+        }
+        .btn-round:hover { background: var(--color-primary-active); transform: scale(1.05); }
+        .audio-progress {
+            flex: 1; height: 4px; background: var(--color-hairline);
+            border-radius: 2px; overflow: hidden; cursor: pointer;
+        }
+        .audio-progress-fill {
+            height: 100%; background: var(--color-primary); border-radius: 2px;
+            width: 0%; transition: width 0.1s linear;
+        }
+        .audio-time {
+            font-family: var(--font-mono); font-size: 12px;
+            color: var(--color-muted); min-width: 65px; text-align: right;
+        }
+
+        .speaker-select-wrapper {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .speaker-select-wrapper select { flex: 1; }
+
+        .sentence-list {
+            max-height: 200px; overflow-y: auto; font-family: var(--font-mono);
+            font-size: 13px;
+        }
+        .sentence-item {
+            padding: 6px 10px; border-radius: 6px; margin: 4px 0;
+            background: var(--color-canvas-soft); display: flex;
+            align-items: center; gap: 8px;
+        }
+        .sentence-item.playing {
+            background: rgba(22, 163, 74, 0.1); border-left: 3px solid var(--color-success);
+        }
+        .sentence-item.done {
+            color: var(--color-muted);
+        }
+        .sentence-seq {
+            font-size: 11px; color: var(--color-muted); min-width: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="gradient-orb orb-mint" style="width:400px;height:400px;top:-100px;left:-100px;"></div>
+    <div class="gradient-orb orb-peach" style="width:350px;height:350px;top:30%;right:-80px;"></div>
+
+    <div class="container container-wide" style="position:relative;z-index:1;padding-top:24px;padding-bottom:32px;">
+        <header class="mb-lg">
+            <h1 class="display-md mb-xs"><i class="fas fa-headphones"></i> TTS Only Debug</h1>
+            <p class="body-md text-muted">ASR → GSV-TTS-Lite Streaming Output (no translation)</p>
+        </header>
+
+        <div class="card mb-lg">
+            <div class="pipeline-container">
+                <div class="pipeline-node" id="pipeline-asr">
+                    <div class="pipeline-node-icon"><i class="fas fa-microphone"></i></div>
+                    <div class="pipeline-node-label">ASR</div>
+                    <div class="pipeline-node-status">Waiting</div>
+                </div>
+                <div class="pipeline-arrow" id="pipeline-arrow">→</div>
+                <div class="pipeline-node" id="pipeline-tts">
+                    <div class="pipeline-node-icon"><i class="fas fa-headphones"></i></div>
+                    <div class="pipeline-node-label">TTS</div>
+                    <div class="pipeline-node-status">Waiting</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-sliders-h"></i>
+                    <h2>Controls</h2>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:14px;">
+                    <div>
+                        <label class="form-label" for="mic-select">Microphone</label>
+                        <select id="mic-select" class="form-input">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="language-select">ASR Language</label>
+                        <select id="language-select" class="form-input">
+                            <option value="">Auto Detect</option>
+                            <option value="zh">Chinese</option>
+                            <option value="en">English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="ko">Korean</option>
+                            <option value="yue">Cantonese</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="speaker-select">
+                            <i class="fas fa-user"></i> Reference Voice (required)
+                        </label>
+                        <div class="speaker-select-wrapper">
+                            <select id="speaker-select" class="form-input">
+                                <option value="">Loading voice samples...</option>
+                            </select>
+                            <button id="refresh-speakers-btn" class="btn btn-sm btn-outline" title="Refresh">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;">
+                        <button id="start-mic-btn" class="btn btn-primary" style="flex:1;">
+                            <i class="fas fa-play"></i> Start Recording
+                        </button>
+                        <button id="stop-mic-btn" class="btn btn-secondary" disabled style="flex:1;">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                    </div>
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="auto-tts-check" checked>
+                        <label for="auto-tts-check" class="body-sm">Auto TTS during recording</label>
+                    </div>
+                    <div id="status-indicator" class="status-indicator idle">
+                        <i class="fas fa-circle"></i><span>Ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-waveform"></i>
+                    <h2>Audio Monitor</h2>
+                </div>
+                <div id="waveform-container" style="background:var(--color-canvas-soft);border-radius:12px;padding:20px;min-height:80px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    <div id="waveform"></div>
+                </div>
+                <div class="mt-md" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--color-canvas-soft);border-radius:8px;">
+                    <span class="caption">Audio Level:</span>
+                    <div class="progress-bar" style="flex:1;"><div class="progress-fill" id="audio-level-fill" style="width:0%;"></div></div>
+                    <span class="caption" id="audio-level-value" style="min-width:40px;text-align:right;">0%</span>
+                </div>
+                <div class="grid grid-2 mt-lg">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-segments">0</div>
+                        <div class="stat-label">ASR Segments</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-tts-count">0</div>
+                        <div class="stat-label">TTS Chunks</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-file-text"></i>
+                    <h2>ASR Output</h2>
+                </div>
+                <div class="asr-output" id="asr-output">
+                    <span class="placeholder">Waiting for speech input...</span>
+                </div>
+                <div class="mt-sm" style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-muted);">
+                    <span id="asr-timestamp">--:--:--</span>
+                    <span id="asr-lang-tag" class="lang-tag source" style="display:none;"></span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-music"></i>
+                    <h2>TTS Output + Player</h2>
+                </div>
+                <div class="sentence-list mb-md" id="sentence-list"></div>
+                <div class="audio-player-section hidden" id="audio-player-section">
+                    <button class="btn-round" id="audio-play-btn" title="Play/Pause">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <div class="audio-progress" id="audio-progress-bar">
+                        <div class="audio-progress-fill" id="audio-progress-fill"></div>
+                    </div>
+                    <span class="audio-time" id="audio-time-display">0:00 / 0:00</span>
+                </div>
+                <div id="tts-placeholder" style="padding:20px;text-align:center;color:var(--color-muted-soft);font-style:italic;">
+                    Waiting for TTS output...
+                </div>
+            </div>
+
+            <div class="card" style="grid-column:1/-1;">
+                <div class="card-header">
+                    <i class="fas fa-terminal"></i>
+                    <h2>Debug Log</h2>
+                    <button id="clear-log-btn" class="btn btn-sm btn-outline" style="margin-left:auto;">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+                <div class="log-panel" id="log-panel"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        let isRecording = false;
+        let mediaStream = null;
+        let audioContext = null;
+        let analyser = null, dataArray = null, waveformInterval = null;
+        let accumulatedAsrText = '';
+        let segmentCount = 0, ttsGenCount = 0;
+        let isTtsRunning = false;
+
+        let playAudioCtx = null;
+        let audioBuffers = {};
+        let nextScheduleTime = 0;
+        let scheduledSources = [];
+        let totalDuration = 0;
+        let playStartTime = 0;
+        let pauseOffset = 0;
+        let wasPlayingBeforePause = false;
+        let playProgressRaf = null;
+        let isGaplessPlaying = false;
+        let currentPlayingSeq = -1, maxReceivedSeq = -1, allChunksReceived = false;
+        let allSentences = [];
+        let lastTtsText = '';
+        let streamingTtsTimer = null;
+        const STREAMING_TTS_DEBOUNCE = 300;
+
+        const micSelect = document.getElementById('mic-select');
+        const languageSelect = document.getElementById('language-select');
+        const speakerSelect = document.getElementById('speaker-select');
+        const startMicBtn = document.getElementById('start-mic-btn');
+        const stopMicBtn = document.getElementById('stop-mic-btn');
+        const autoTtsCheck = document.getElementById('auto-tts-check');
+        const refreshSpeakersBtn = document.getElementById('refresh-speakers-btn');
+        const statusIndicator = document.getElementById('status-indicator');
+        const waveform = document.getElementById('waveform');
+        const audioLevelFill = document.getElementById('audio-level-fill');
+        const audioLevelValue = document.getElementById('audio-level-value');
+        const asrOutput = document.getElementById('asr-output');
+        const asrTimestamp = document.getElementById('asr-timestamp');
+        const asrLangTag = document.getElementById('asr-lang-tag');
+        const sentenceList = document.getElementById('sentence-list');
+        const audioPlayerSection = document.getElementById('audio-player-section');
+        const audioPlayBtn = document.getElementById('audio-play-btn');
+        const audioProgressFill = document.getElementById('audio-progress-fill');
+        const audioProgressBar = document.getElementById('audio-progress-bar');
+        const audioTimeDisplay = document.getElementById('audio-time-display');
+        const ttsPlaceholder = document.getElementById('tts-placeholder');
+        const logPanel = document.getElementById('log-panel');
+        const clearLogBtn = document.getElementById('clear-log-btn');
+        const statSegments = document.getElementById('stat-segments');
+        const statTtsCount = document.getElementById('stat-tts-count');
+
+        function addLog(message, type = 'info') {
+            const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-timestamp">[${ts}]</span>${escapeHtml(message)}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateStatus(status) {
+            statusIndicator.className = `status-indicator ${status}`;
+            const span = statusIndicator.querySelector('span');
+            const map = { idle: 'Ready', generating_tts: 'TTS...', complete: 'Done', error: 'Error' };
+            span.textContent = map[status] || status;
+        }
+
+        function updateNode(id, state) {
+            document.getElementById(id).className = 'pipeline-node ' + state;
+        }
+
+        function resetPipeline() {
+            updateNode('pipeline-asr', '');
+            updateNode('pipeline-tts', '');
+            document.getElementById('pipeline-arrow').className = 'pipeline-arrow';
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        async function loadMicrophones() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const mics = devices.filter(d => d.kind === 'audioinput');
+                micSelect.innerHTML = '';
+                mics.forEach((mic, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = mic.label || `Microphone ${i + 1}`;
+                    micSelect.appendChild(opt);
+                });
+                addLog(`Loaded ${mics.length} microphone(s)`, 'success');
+            } catch (e) { addLog(`Microphone load error: ${e}`, 'error'); }
+        }
+
+        async function loadVoiceSamples() {
+            try {
+                const resp = await fetch('/api/voice-clone/list');
+                const data = await resp.json();
+                speakerSelect.innerHTML = '';
+                if (data.samples && data.samples.length > 0) {
+                    data.samples.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.filename;
+                        opt.textContent = s.filename;
+                        speakerSelect.appendChild(opt);
+                    });
+                    addLog(`Loaded ${data.samples.length} voice sample(s)`, 'success');
+                } else {
+                    speakerSelect.innerHTML = '<option value="">No voice samples</option>';
+                    addLog('No voice samples. Upload one in Settings.', 'warning');
+                }
+            } catch (e) {
+                speakerSelect.innerHTML = '<option value="">Failed</option>';
+                addLog(`Voice sample load error: ${e}`, 'error');
+            }
+        }
+
+        function initWaveform() {
+            waveform.innerHTML = '';
+            for (let i = 0; i < 50; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'waveform-bar';
+                bar.style.height = `${Math.random() * 30 + 8}px`;
+                waveform.appendChild(bar);
+            }
+        }
+
+        function updateWaveform() {
+            if (!analyser || !dataArray) return;
+            analyser.getByteFrequencyData(dataArray);
+            const bars = waveform.querySelectorAll('.waveform-bar');
+            let maxVal = 0;
+            bars.forEach((bar, i) => {
+                const v = dataArray[i * 4] || 0;
+                const h = Math.max(4, (v / 255) * 70);
+                bar.style.height = `${h}px`;
+                bar.className = `waveform-bar ${v > 30 ? 'active' : ''}`;
+                if (v > maxVal) maxVal = v;
+            });
+            const level = (maxVal / 255) * 100;
+            audioLevelFill.style.width = `${level}%`;
+            audioLevelValue.textContent = `${Math.round(level)}%`;
+        }
+
+        // ── Gapless Streaming Audio Playback (Web Audio API) ──
+
+        function getPlayAudioCtx() {
+            if (!playAudioCtx || playAudioCtx.state === 'closed') {
+                playAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (playAudioCtx.state === 'suspended') {
+                playAudioCtx.resume();
+            }
+            return playAudioCtx;
+        }
+
+        function enqueueAudioChunk(seq, audioBytes, text) {
+            if (!audioBytes || audioBytes.byteLength === 0) return;
+            if (audioBuffers[seq]) return;
+
+            if (seq > maxReceivedSeq) maxReceivedSeq = seq;
+            audioPlayerSection.classList.remove('hidden');
+            ttsPlaceholder.style.display = 'none';
+            markSentencePlaying(seq);
+
+            const ctx = getPlayAudioCtx();
+            let arrayBuf;
+            if (audioBytes instanceof ArrayBuffer) {
+                arrayBuf = audioBytes;
+            } else if (audioBytes.buffer instanceof ArrayBuffer) {
+                arrayBuf = audioBytes.buffer.slice(audioBytes.byteOffset, audioBytes.byteOffset + audioBytes.byteLength);
+            } else {
+                arrayBuf = new Uint8Array(audioBytes).buffer;
+            }
+
+            ctx.decodeAudioData(arrayBuf, (decoded) => {
+                audioBuffers[seq] = { buffer: decoded, text: text || '', duration: decoded.duration };
+                totalDuration += decoded.duration;
+                tryScheduleNext(seq);
+            }, (err) => {
+                addLog(`Audio decode error for seq ${seq}: ${err}`, 'error');
+            });
+        }
+
+        function tryScheduleNext(justDecodedSeq) {
+            let seq = currentPlayingSeq + 1;
+            if (isGaplessPlaying && seq < justDecodedSeq) return;
+
+            while (audioBuffers[seq]) {
+                const entry = audioBuffers[seq];
+                const source = playAudioCtx.createBufferSource();
+                source.buffer = entry.buffer;
+                source.connect(playAudioCtx.destination);
+
+                const now = playAudioCtx.currentTime;
+                const startAt = Math.max(now + 0.005, nextScheduleTime);
+                source.start(startAt);
+                nextScheduleTime = startAt + entry.duration;
+
+                const thisSeq = seq;
+                source.onended = () => {
+                    scheduledSources = scheduledSources.filter(s => s.seq !== thisSeq);
+                    markSentenceDone(thisSeq);
+                    currentPlayingSeq = thisSeq;
+                    delete audioBuffers[thisSeq];
+                    tryScheduleNext(thisSeq);
+                    if (allChunksReceived && Object.keys(audioBuffers).length === 0 && scheduledSources.length === 0) {
+                        onAllPlaybackDone();
+                    }
+                };
+
+                scheduledSources.push({ source, seq });
+                addLog(`Scheduled TTS chunk [${seq}]: "${entry.text.substring(0, 25)}..."`, 'info');
+                seq++;
+            }
+
+            if (!isGaplessPlaying && scheduledSources.length > 0) {
+                isGaplessPlaying = true;
+                playStartTime = playAudioCtx.currentTime;
+                pauseOffset = 0;
+                startPlaybackProgress();
+                audioPlayBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            }
+        }
+
+        function onAllPlaybackDone() {
+            isGaplessPlaying = false;
+            audioPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+            audioProgressFill.style.width = '0%';
+            audioTimeDisplay.textContent = '0:00 / 0:00';
+            markAllSentencesDone();
+            if (playProgressRaf) {
+                cancelAnimationFrame(playProgressRaf);
+                playProgressRaf = null;
+            }
+            updateStatus('complete');
+            updateNode('pipeline-tts', 'complete');
+            isTtsRunning = false;
+        }
+
+        function startPlaybackProgress() {
+            function tick() {
+                if (!playAudioCtx || !isGaplessPlaying) return;
+                const elapsed = playAudioCtx.currentTime - playStartTime + pauseOffset;
+                const dur = totalDuration || 1;
+                const pct = Math.min(100, (elapsed / dur) * 100);
+                audioProgressFill.style.width = `${pct}%`;
+                audioTimeDisplay.textContent = `${formatTime(elapsed)} / ${formatTime(dur)}`;
+                if (elapsed < dur && isGaplessPlaying) {
+                    playProgressRaf = requestAnimationFrame(tick);
+                }
+            }
+            playProgressRaf = requestAnimationFrame(tick);
+        }
+
+        function pausePlayback() {
+            if (!playAudioCtx || !isGaplessPlaying) return;
+            pauseOffset += playAudioCtx.currentTime - playStartTime;
+            playAudioCtx.suspend();
+            isGaplessPlaying = false;
+            audioPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+            if (playProgressRaf) {
+                cancelAnimationFrame(playProgressRaf);
+                playProgressRaf = null;
+            }
+        }
+
+        function resumePlayback() {
+            if (!playAudioCtx) return;
+            playStartTime = playAudioCtx.currentTime;
+            wasPlayingBeforePause = true;
+            playAudioCtx.resume().then(() => {
+                isGaplessPlaying = true;
+                wasPlayingBeforePause = false;
+                audioPlayBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                startPlaybackProgress();
+            });
+        }
+
+        function toggleAudio() {
+            if (isGaplessPlaying) {
+                pausePlayback();
+            } else if (wasPlayingBeforePause || scheduledSources.length > 0) {
+                resumePlayback();
+            }
+        }
+
+        function stopAllSources() {
+            scheduledSources.forEach(s => {
+                try { s.source.stop(); } catch (e) {}
+            });
+            scheduledSources = [];
+            if (playAudioCtx) {
+                try { playAudioCtx.suspend(); } catch (e) {}
+            }
+        }
+
+        function resetAudioChunks() {
+            stopAllSources();
+            audioBuffers = {};
+            scheduledSources = [];
+            currentPlayingSeq = -1; maxReceivedSeq = -1; allChunksReceived = false;
+            allSentences = [];
+            sentenceList.innerHTML = '';
+            totalDuration = 0;
+            nextScheduleTime = 0;
+            pauseOffset = 0;
+            wasPlayingBeforePause = false;
+            isGaplessPlaying = false;
+            if (playProgressRaf) {
+                cancelAnimationFrame(playProgressRaf);
+                playProgressRaf = null;
+            }
+            audioPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+            audioProgressFill.style.width = '0%';
+            audioTimeDisplay.textContent = '0:00 / 0:00';
+            audioPlayerSection.classList.add('hidden');
+            ttsPlaceholder.style.display = 'block';
+        }
+
+        function addSentenceItem(seq, text) {
+            const existing = allSentences.find(s => s.seq === seq);
+            if (existing) return;
+            allSentences.push({ seq, text, state: 'pending' });
+            allSentences.sort((a, b) => a.seq - b.seq);
+            refreshSentenceList();
+        }
+
+        function markSentencePlaying(seq) {
+            const s = allSentences.find(x => x.seq === seq);
+            if (s) s.state = 'playing';
+            refreshSentenceList();
+        }
+
+        function markSentenceDone(seq) {
+            const s = allSentences.find(x => x.seq === seq);
+            if (s) s.state = 'done';
+            refreshSentenceList();
+            ttsGenCount = seq + 1;
+            statTtsCount.textContent = ttsGenCount;
+            updateNode('pipeline-tts', 'active');
+        }
+
+        function markAllSentencesDone() {
+            allSentences.forEach(s => { if (s.state !== 'done') s.state = 'done'; });
+            refreshSentenceList();
+        }
+
+        function refreshSentenceList() {
+            sentenceList.innerHTML = '';
+            allSentences.forEach(s => {
+                const div = document.createElement('div');
+                div.className = `sentence-item ${s.state}`;
+                const icon = s.state === 'playing' ? '🔊' : s.state === 'done' ? '✅' : '⏳';
+                div.innerHTML = `<span class="sentence-seq">#${s.seq}</span><span>${icon}</span><span>${escapeHtml(s.text.substring(0, 50))}${s.text.length > 50 ? '...' : ''}</span>`;
+                sentenceList.appendChild(div);
+            });
+        }
+
+        // ── Trigger TTS ──
+
+        function runTtsOnly(text) {
+            if (!text || !text.trim() || isTtsRunning) return;
+
+            const speakerWav = speakerSelect.value;
+            if (!speakerWav) {
+                addLog('Please select a reference voice first', 'warning');
+                return;
+            }
+
+            isTtsRunning = true;
+            lastTtsText = text;
+            resetAudioChunks();
+            updateNode('pipeline-asr', 'complete');
+            updateNode('pipeline-tts', 'active');
+            document.getElementById('pipeline-arrow').className = 'pipeline-arrow flowing';
+            updateStatus('generating_tts');
+            allChunksReceived = false;
+
+            socket.emit('tts_only_pipeline', {
+                text: text.trim(),
+                speaker_wav: speakerWav
+            });
+
+            addLog(`TTS only: "${text.trim().substring(0, 50)}..."`, 'info');
+        }
+
+        // ── Socket.IO Events ──
+
+        socket.on('connect', () => addLog('Connected', 'success'));
+        socket.on('disconnect', () => { addLog('Disconnected', 'warning'); if (isRecording) stopRecording(); });
+
+        socket.on('recognition_result', (data) => {
+            const text = data.text || '';
+            const language = data.language || 'zh';
+            const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+
+            if (text) {
+                accumulatedAsrText = text;
+                asrOutput.innerHTML = escapeHtml(text) + '<span class="streaming-cursor"></span>';
+                asrTimestamp.textContent = ts;
+                segmentCount++;
+                statSegments.textContent = segmentCount;
+
+                if (language) {
+                    asrLangTag.style.display = 'inline-flex';
+                    asrLangTag.textContent = language.toUpperCase();
+                    asrLangTag.className = language === 'en' ? 'lang-tag target' : 'lang-tag source';
+                }
+                updateNode('pipeline-asr', 'active');
+
+                if (autoTtsCheck.checked && text.length >= 4 && text !== lastTtsText) {
+                    if (streamingTtsTimer) clearTimeout(streamingTtsTimer);
+                    streamingTtsTimer = setTimeout(() => {
+                        runTtsOnly(text);
+                    }, STREAMING_TTS_DEBOUNCE);
+                }
+            }
+        });
+
+        socket.on('audio_level', (data) => {
+            audioLevelFill.style.width = `${data.level || 0}%`;
+            audioLevelValue.textContent = `${Math.round(data.level || 0)}%`;
+        });
+
+        socket.on('log', (data) => addLog(data.message, data.type || 'info'));
+        socket.on('error', (data) => {
+            addLog(`Server error: ${data.message}`, 'error');
+            updateStatus('error');
+        });
+
+        // TTS Only Pipeline events
+        socket.on('tts_only_status', (data) => {
+            if (data.stage === 'complete') {
+                updateStatus('complete');
+                updateNode('pipeline-tts', 'complete');
+                allChunksReceived = true;
+                tryPlayNextChunk();
+                isTtsRunning = false;
+            }
+            addLog(`TTS: ${data.message}`, 'info');
+        });
+
+        socket.on('tts_only_sentence_count', (data) => {
+            addLog(`Total sentences: ${data.count}`, 'info');
+        });
+
+        socket.on('tts_only_audio_chunk', (data) => {
+            const audioBytes = data.audio || null;
+            const seq = data.seq || 0;
+            const text = data.text || '';
+
+            if (audioBytes) {
+                addSentenceItem(seq, text);
+                enqueueAudioChunk(seq, audioBytes, text);
+            }
+        });
+
+        socket.on('tts_only_error', (data) => {
+            addLog(`TTS error: ${data.message}`, 'error');
+            updateStatus('error');
+            updateNode('pipeline-tts', 'error');
+            isTtsRunning = false;
+            allChunksReceived = true;
+        });
+
+        // ── Recording ──
+
+        async function startRecording() {
+            if (isRecording) return;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioDevices = devices.filter(d => d.kind === 'audioinput');
+                if (audioDevices.length === 0) { addLog('No audio input devices', 'error'); return; }
+
+                const micIndex = parseInt(micSelect.value) || 0;
+                let deviceId = 'default';
+                if (micIndex < audioDevices.length) deviceId = audioDevices[micIndex].deviceId;
+
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { deviceId, sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+                });
+
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 128;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                source.connect(analyser);
+
+                if (audioContext.createAudioWorklet) {
+                    try {
+                        await audioContext.audioWorklet.addModule('/static/audio-processor.js');
+                        const node = new AudioWorkletNode(audioContext, 'audio-processor');
+                        source.connect(node);
+                        node.port.onmessage = (e) => {
+                            if (e.data.type === 'audioData') {
+                                socket.emit('stream_audio', {
+                                    data: Array.from(e.data.buffer),
+                                    device: 'auto',
+                                    language: languageSelect.value || null
+                                });
+                            }
+                        };
+                        addLog('Using AudioWorklet', 'info');
+                    } catch (err) {
+                        addLog(`AudioWorklet failed: ${err.message}, fallback to ScriptProcessor`, 'warning');
+                        setupScriptProcessor(source);
+                    }
+                } else if (audioContext.createScriptProcessor) {
+                    setupScriptProcessor(source);
+                } else {
+                    addLog('No audio processing API', 'error');
+                    stopRecording();
+                    return;
+                }
+
+                isRecording = true;
+                accumulatedAsrText = '';
+                resetPipeline();
+                resetAudioChunks();
+                updateNode('pipeline-asr', 'active');
+                startMicBtn.disabled = true;
+                stopMicBtn.disabled = false;
+                waveformInterval = setInterval(updateWaveform, 50);
+                addLog('Recording started', 'success');
+            } catch (e) {
+                addLog(`Recording error: ${e.message}`, 'error');
+                stopRecording();
+            }
+        }
+
+        function setupScriptProcessor(source) {
+            const sp = audioContext.createScriptProcessor(2048, 1, 1);
+            source.connect(sp);
+            sp.onaudioprocess = (e) => {
+                const data = e.inputBuffer.getChannelData(0);
+                const i16 = new Int16Array(data.length);
+                for (let i = 0; i < data.length; i++) i16[i] = Math.max(-32768, Math.min(32767, data[i] * 32768));
+                socket.emit('stream_audio', {
+                    data: Array.from(i16),
+                    device: 'auto',
+                    language: languageSelect.value || null
+                });
+            };
+            addLog('Using ScriptProcessor', 'info');
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            isRecording = false;
+            if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; analyser = null; dataArray = null; }
+            if (waveformInterval) { clearInterval(waveformInterval); waveformInterval = null; }
+            socket.emit('stop_stream');
+            startMicBtn.disabled = false;
+            stopMicBtn.disabled = true;
+            if (streamingTtsTimer) { clearTimeout(streamingTtsTimer); streamingTtsTimer = null; }
+            updateNode('pipeline-asr', 'complete');
+            addLog('Recording stopped', 'info');
+
+            if (accumulatedAsrText && autoTtsCheck.checked && accumulatedAsrText !== lastTtsText) {
+                runTtsOnly(accumulatedAsrText);
+            }
+            lastTtsText = '';
+        }
+
+        // ── Event Listeners ──
+
+        startMicBtn.addEventListener('click', startRecording);
+        stopMicBtn.addEventListener('click', stopRecording);
+        audioPlayBtn.addEventListener('click', toggleAudio);
+        audioProgressBar.addEventListener('click', (e) => {
+            if (!audioElement) return;
+            const rect = audioProgressBar.getBoundingClientRect();
+            audioElement.currentTime = ((e.clientX - rect.left) / rect.width) * audioElement.duration;
+        });
+        refreshSpeakersBtn.addEventListener('click', loadVoiceSamples);
+        clearLogBtn.addEventListener('click', () => { logPanel.innerHTML = ''; });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMicrophones();
+            loadVoiceSamples();
+            initWaveform();
+            addLog('TTS Only Debug page loaded', 'info');
+            addLog('Pipeline: Microphone → ASR → GSV-TTS-Lite', 'info');
+            addLog('Select a reference voice to start', 'info');
+        });
+    </script>
+</body>
+</html>

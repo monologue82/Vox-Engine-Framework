@@ -1,0 +1,55 @@
+# VoxEngine 依赖配置
+# 核心工作流: FunASR ASR → LM Studio 翻译 → GSV-TTS-Lite TTS
+# 支持 FunASR 流式 ASR (GPU 加速版本)
+
+# ============ Flask 基础框架 ============
+flask==3.0.0
+flask-socketio==5.3.6
+python-socketio==5.10.0
+werkzeug==3.0.1
+eventlet==0.33.3
+
+# ============ 核心深度学习框架 (CUDA 13.2 + sm_120) ============
+# 注意: RTX 5060 需要 sm_120 计算能力支持
+# PyTorch CUDA 版本选择: 使用 cu13.2 或最新 nightly 构建
+
+# 方案1: 使用最新稳定版 PyTorch
+# 推荐使用 PyTorch 官方安装命令以获得最佳兼容性:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu132
+
+torch>=2.8.0  # 建议使用 2.8 或更高以获得更好的 CUDA 13.2 支持
+torchvision>=0.23.0
+torchaudio>=2.8.0
+
+# ============ FunASR 流式语音识别 (替代 Vosk) ============
+# FunASR 支持流式输出，高性能 ASR
+funasr>=1.1.0
+modelscope>=1.15.0
+huggingface-hub>=0.20.0
+
+# FunASR 核心依赖
+scipy>=1.4.1
+librosa>=0.10.0
+soundfile>=0.12.1
+kaldiio>=2.17.0
+torch_complex
+sentencepiece
+jieba
+pytorch_wpe
+editdistance-s>=1.0.0
+tqdm
+jaconv
+
+# ============ FunASR 流式推理支持 ============
+# 推荐使用 SenseVoiceSmall - 支持多语言流式识别
+# 或者 paraformer-zh-streaming 用于中文流式识别
+
+# ============ 音频处理 ============
+pyaudio==0.2.14
+numpy>=1.24.0
+resampy>=0.4.0
+
+# ============ 其他依赖 ============
+requests>=2.31.0
+PyYAML>=6.0
+tqdm>=4.65.0

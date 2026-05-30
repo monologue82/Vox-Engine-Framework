@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoxEngine — Intelligent Speech Processing</title>
+
+  <!-- Dark Mode (must run before paint) -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <!-- ── Gradient Orbs ──────────────────── -->
+  <div class="gradient-orb orb-mint" style="width: 420px; height: 420px; top: -120px; left: -80px;"></div>
+  <div class="gradient-orb orb-peach" style="width: 320px; height: 320px; top: 200px; right: -60px;"></div>
+  <div class="gradient-orb orb-lavender" style="width: 360px; height: 360px; bottom: -120px; left: 15%;"></div>
+  <div class="gradient-orb orb-sky" style="width: 280px; height: 280px; bottom: 200px; right: 15%;"></div>
+
+  <!-- ── Toast Container ────────────────── -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ── Navigation ─────────────────────── -->
+  <nav class="top-nav">
+    <div class="container" style="height: 100%; display: flex; align-items: center; justify-content: space-between;">
+      <a href="#" class="nav-brand" id="nav-recognition-link" onclick="switchPage('recognition')">
+        <div class="nav-brand-icon">
+          <i class="fas fa-microphone-alt"></i>
+        </div>
+        <span class="nav-brand-text">VoxEngine</span>
+      </a>
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <button class="nav-link active" id="nav-recognition" onclick="switchPage('recognition')">Home</button>
+        <a href="/asr-debug" class="nav-link" id="nav-asr-debug">ASR Debug</a>
+        <a href="/translation-debug" class="nav-link" id="nav-translation-debug">Translation Debug</a>
+        <button class="nav-theme-toggle" id="nav-theme-toggle" title="切换主题 / Toggle Theme" onclick="toggleTheme()">
+          <i class="fas fa-moon"></i>
+        </button>
+        <a href="/settings" class="btn btn-outline btn-sm">
+          <i class="fas fa-cog" style="margin-right: 4px;"></i>
+          Settings
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main Content ───────────────────── -->
+  <main class="container" style="position: relative; z-index: 1;">
+
+    <!-- ============ Recognition Page ============ -->
+    <section id="page-recognition">
+
+      <!-- Hero -->
+      <div class="hero anim-fadeInUp">
+        <h1 class="display-xl">VoxEngine</h1>
+        </div>
+
+      <!-- Control Panel -->
+      <div class="card anim-fadeInUp anim-delay-3" style="margin-bottom: var(--spacing-lg);">
+        <div class="card-header">
+          <i class="fas fa-sliders-h"></i>
+          <h2>Control Panel</h2>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--spacing-xl); flex-wrap: wrap;">
+          <!-- Mic Button -->
+          <button id="mic-btn" class="mic-btn" onclick="toggleMic()" title="Toggle microphone">
+            <i class="fas fa-microphone"></i>
+          </button>
+          <span class="status-indicator idle" id="mic-status">Ready</span>
+
+          <!-- Source Language -->
+          <div style="flex: 1; min-width: 140px;">
+            <label class="form-label">Source Language (ASR)</label>
+            <select id="source-language" class="form-input">
+              <option value="zh">Chinese (中文)</option>
+              <option value="en">English</option>
+              <option value="ja">Japanese (日本語)</option>
+              <option value="ko">Korean (한국어)</option>
+              <option value="yue">Cantonese (粤语)</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="es">Spanish</option>
+              <option value="pt">Portuguese</option>
+              <option value="auto" selected>Auto Detect</option>
+            </select>
+          </div>
+
+          <!-- Target Language -->
+          <div style="flex: 1; min-width: 140px;">
+            <label class="form-label">Target Language (Translation)</label>
+            <select id="target-language" class="form-input">
+              <option value="Chinese">Chinese (中文)</option>
+              <option value="English" selected>English</option>
+              <option value="Japanese">Japanese (日本語)</option>
+              <option value="Korean">Korean (한국어)</option>
+              <option value="French">French</option>
+              <option value="German">German</option>
+              <option value="Spanish">Spanish</option>
+              <option value="Portuguese">Portuguese</option>
+            </select>
+          </div>
+
+          <!-- Microphone -->
+          <div style="flex: 1; min-width: 140px;">
+            <label class="form-label">Microphone</label>
+            <select id="microphone-select" class="form-input">
+              <option value="">Loading...</option>
+            </select>
+          </div>
+
+          <!-- Provider -->
+          <div style="flex: 1; min-width: 140px;">
+            <label class="form-label">Provider</label>
+            <select id="translation-provider" class="form-input">
+              <option value="lps" selected>LPS (Local Python Server)</option>
+              <option value="lmstudio">LM Studio</option>
+            </select>
+          </div>
+
+          <!-- Model -->
+          <div style="flex: 1; min-width: 160px;">
+            <label class="form-label">Model</label>
+            <select id="model-select" class="form-input">
+              <option value="">Loading...</option>
+            </select>
+          </div>
+
+          <!-- Speech Model (hidden reference for JS) -->
+          <select id="vosk-model-select" class="form-input" style="display: none;">
+            <option value="">Loading...</option>
+          </select>
+
+          <!-- Hidden controls for JS compatibility -->
+          <select id="translation-style-preset" style="display: none;"><option value=""></option></select>
+          <textarea id="translation-style" style="display: none;"></textarea>
+          <input type="checkbox" id="auto-play-tts" checked style="display: none;">
+          <input type="checkbox" id="streaming-tts" style="display: none;">
+          <button id="start-btn" onclick="startRecognition()" style="display: none;">Start</button>
+          <button id="stop-btn" disabled style="display: none;">Stop</button>
+          <button id="tts-play-btn" onclick="playTTS()" disabled style="display: none;">Play</button>
+          <button id="tts-stop-btn" onclick="stopTTS()" disabled style="display: none;">Stop</button>
+          <button id="edit-translation-btn" onclick="editTranslation()" style="display: none;">Edit</button>
+          <button id="edit-prompt-btn" style="display: none;"></button>
+          <button id="save-preset-btn" style="display: none;"></button>
+        </div>
+      </div>
+
+      <!-- Voice Cloning / TTS Reference Audio -->
+      <div class="card voice-clone-section anim-fadeInUp anim-delay-3" style="margin-bottom: var(--spacing-lg);">
+        <div class="card-header">
+          <i class="fas fa-microphone-alt"></i>
+          <h2><span id="voice-clone-title">音色参考音频</span></h2>
+          <span id="current-engine-badge" class="tts-engine-badge gsv">GSV-TTS-Lite</span>
+        </div>
+        <div id="voice-clone-panel">
+          <!-- Engine info -->
+          <div style="margin-bottom: var(--spacing-md);">
+            <span id="current-engine-desc" class="body-sm text-muted">声纹克隆引擎，上传参考音频即可生成相同音色的语音</span>
+          </div>
+
+          <!-- Hidden TTS mode toggle -->
+          <button id="tts-mode-gsv" style="display:none;">GSV</button>
+
+          <!-- Hidden TTS controls for JS compatibility -->
+          <select id="tts-voice-select" class="form-input" style="display:none;"><option value=""></option></select>
+          <select id="tts-language-select" class="form-input" style="display:none;">
+            <option value="english">English</option>
+            <option value="chinese">Chinese</option>
+          </select>
+          <input type="range" id="tts-rate" min="-50" max="100" value="0" style="display:none;">
+          <span id="tts-rate-value" style="display:none;"></span>
+          <span id="tts-language-hint" style="display:none;"></span>
+
+          <!-- Upload Area -->
+          <div id="voice-upload-area" class="voice-upload-area" onclick="document.getElementById('voice-file-input').click()">
+            <div class="voice-upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+            <div class="voice-upload-text">
+              <p class="body-strong">点击上传或拖拽音频文件到此处</p>
+              <p class="body-sm text-muted">支持 WAV / MP3 / OGG / FLAC / M4A，最大 10MB</p>
+            </div>
+            <input type="file" id="voice-file-input" accept="audio/*" style="display:none" onchange="handleVoiceUploadFromInput(event)">
+          </div>
+
+          <!-- Upload Progress -->
+          <div id="voice-upload-progress" class="voice-upload-progress" style="display:none;">
+            <div class="progress-bar">
+              <div class="progress-fill" id="voice-upload-progress-fill"></div>
+            </div>
+            <span class="body-sm text-muted" id="voice-upload-progress-text">Uploading...</span>
+          </div>
+
+          <!-- Reference Text (optional) -->
+          <div style="margin-top: var(--spacing-md);">
+            <label class="form-label" for="gsv-reference-text">参考文本（可选，提高合成准确度）</label>
+            <textarea id="gsv-reference-text" class="form-input" rows="2" placeholder="填写参考音频中对应的文本内容，留空则自动识别"></textarea>
+          </div>
+
+          <!-- Selected Voice Info -->
+          <div id="selected-voice-info" style="display:none; margin-top: var(--spacing-md);">
+            <div class="selected-voice-badge">
+              <i class="fas fa-check-circle"></i>
+              <span>已选音色：</span>
+              <span id="selected-voice-name" class="body-strong">—</span>
+            </div>
+          </div>
+
+          <!-- Voice Samples List -->
+          <div style="margin-top: var(--spacing-md);">
+            <label class="form-label">已上传的音色</label>
+            <div id="voice-samples-list" class="voice-samples-list">
+              <div class="no-samples">暂无上传的音色参考音频</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Output Panels -->
+      <div class="grid grid-2 anim-fadeInUp anim-delay-4" style="margin-bottom: var(--spacing-lg);">
+        <!-- ASR Output -->
+        <div class="card">
+          <div class="card-header">
+            <i class="fas fa-comment-dots"></i>
+            <h2>ASR Output</h2>
+            <span class="status-indicator idle" id="asr-status-indicator" style="margin-left: auto;">
+              <span class="status-dot loading" id="asr-status-dot"></span>
+              <span id="asr-status-text">Idle</span>
+            </span>
+          </div>
+          <div class="output-panel" id="recognition-content">
+            <span class="placeholder">Waiting for speech input&hellip;</span>
+          </div>
+          <div class="status-bar" style="margin-top: var(--spacing-sm);">
+            <div style="margin-right: var(--spacing-xl);">
+              <span class="caption">ASR Time:</span>
+              <span class="body-strong" id="stt-time">—</span>
+            </div>
+            <div>
+              <span class="caption">Segments:</span>
+              <span class="body-strong" id="stt-segments">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Translation Output -->
+        <div class="card">
+          <div class="card-header">
+            <i class="fas fa-language"></i>
+            <h2>Translation Output</h2>
+            <span class="status-indicator idle" id="translation-status-indicator" style="margin-left: auto;">
+              <span class="status-dot loading" id="translation-status-dot"></span>
+              <span id="translation-status-text">Idle</span>
+            </span>
+          </div>
+          <div class="output-panel" id="translation-content">
+            <span class="placeholder">Waiting for translation&hellip;</span>
+          </div>
+          <div class="status-bar" style="margin-top: var(--spacing-sm);">
+            <div style="margin-right: var(--spacing-xl);">
+              <span class="caption">TTFT:</span>
+              <span class="body-strong" id="translation-ttft">—</span>
+            </div>
+            <div style="margin-right: var(--spacing-xl);">
+              <span class="caption">Total Time:</span>
+              <span class="body-strong" id="translation-time">—</span>
+            </div>
+            <div>
+              <span class="caption">Chars:</span>
+              <span class="body-strong" id="translation-chars">—</span>
+            </div>
+          </div>
+          <!-- Hidden prompt content for JS compatibility -->
+          <div id="prompt-content" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- Audio Player -->
+      <div class="card audio-player hidden anim-fadeInUp anim-delay-5" id="audio-player" style="margin-bottom: var(--spacing-lg);">
+        <button class="audio-player-btn" id="audio-play-btn" onclick="toggleAudioPlayback()" disabled>
+          <i class="fas fa-play"></i>
+        </button>
+        <div class="audio-player-progress" id="audio-progress" onclick="seekAudio(event)">
+          <div class="audio-player-progress-fill" id="audio-progress-fill"></div>
+        </div>
+        <span class="audio-player-time" id="audio-time">00:00 / 00:00</span>
+        <audio id="tts-audio-element" style="display: none;"></audio>
+      </div>
+
+      <!-- Performance Stats -->
+      <div class="grid grid-4 anim-fadeInUp anim-delay-4" style="margin-bottom: var(--spacing-lg);">
+        <div class="stat-card">
+          <div class="stat-value" id="asr-time">—</div>
+          <div class="stat-label">ASR Time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="translation-ttft-stat">—</div>
+          <div class="stat-label">Translation TTFT</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="translation-total-stat">—</div>
+          <div class="stat-label">Translation Total</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="tts-time">—</div>
+          <div class="stat-label">TTS Time</div>
+        </div>
+      </div>
+
+      <!-- Debug Log -->
+      <div class="card collapsible anim-fadeInUp anim-delay-5" id="debug-log-collapsible" style="margin-bottom: var(--spacing-xxl);">
+        <div class="collapsible-header" onclick="toggleDebugLog()">
+          <h3 class="title-md" style="display: flex; align-items: center; gap: 8px;">
+            <i class="fas fa-terminal"></i>
+            Debug Log
+          </h3>
+          <i class="fas fa-chevron-down collapsible-toggle"></i>
+        </div>
+        <div class="collapsible-body">
+          <div class="log-panel" id="debug-log"></div>
+        </div>
+      </div>
+
+      <!-- System Monitor Panel -->
+      <div class="card collapsible anim-fadeInUp anim-delay-5" id="system-monitor-panel" style="display:none; margin-bottom: var(--spacing-lg);">
+        <div class="collapsible-header" onclick="toggleMonitorPanel()">
+          <h3 class="title-md" style="display: flex; align-items: center; gap: 8px;">
+            <i class="fas fa-server"></i>
+            系统监控 / System Monitor
+          </h3>
+          <i class="fas fa-chevron-down collapsible-toggle"></i>
+        </div>
+        <div class="collapsible-body" id="monitor-panel-body">
+          <div class="grid grid-2" style="margin-bottom: var(--spacing-md);">
+            <!-- Server Status -->
+            <div class="stat-card">
+              <div class="stat-label" style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot" id="server-dot" style="width:8px;height:8px;"></span>
+                Server
+              </div>
+              <div class="stat-value body-sm" id="server-status">—</div>
+            </div>
+            <!-- LM Studio Status -->
+            <div class="stat-card">
+              <div class="stat-label" style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot" id="lmstudio-dot" style="width:8px;height:8px;"></span>
+                LM Studio
+              </div>
+              <div class="stat-value body-sm" id="lmstudio-status">—</div>
+            </div>
+            <!-- Audio Status -->
+            <div class="stat-card">
+              <div class="stat-label" style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot" id="audio-dot" style="width:8px;height:8px;"></span>
+                Audio Devices
+              </div>
+              <div class="stat-value body-sm" id="audio-status">—</div>
+            </div>
+            <!-- WebSocket Status -->
+            <div class="stat-card">
+              <div class="stat-label" style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot" id="websocket-dot" style="width:8px;height:8px;"></span>
+                WebSocket
+              </div>
+              <div class="stat-value body-sm" id="websocket-status">Disconnected</div>
+            </div>
+          </div>
+          <div class="grid grid-2" style="margin-bottom: var(--spacing-md);">
+            <!-- Memory -->
+            <div class="stat-card">
+              <div class="stat-label">Memory</div>
+              <div class="progress-bar" style="margin: 6px 0;">
+                <div class="progress-fill" id="memory-bar" style="width: 0%;"></div>
+              </div>
+              <div class="body-sm" style="display: flex; justify-content: space-between;">
+                <span class="text-muted"><span id="memory-used">0</span> / <span id="memory-total">0</span> GB</span>
+                <span class="body-strong" id="memory-percent">0%</span>
+              </div>
+            </div>
+            <!-- CPU -->
+            <div class="stat-card">
+              <div class="stat-label">CPU</div>
+              <div class="progress-bar" style="margin: 6px 0;">
+                <div class="progress-fill" id="cpu-bar" style="width: 0%;"></div>
+              </div>
+              <div class="body-sm" style="display: flex; justify-content: flex-end;">
+                <span class="body-strong" id="cpu-percent">0%</span>
+              </div>
+            </div>
+            <!-- VRAM -->
+            <div class="stat-card">
+              <div class="stat-label">VRAM</div>
+              <div class="progress-bar" style="margin: 6px 0;">
+                <div class="progress-fill" id="vram-bar" style="width: 0%;"></div>
+              </div>
+              <div class="body-sm" style="display: flex; justify-content: space-between;">
+                <span class="text-muted"><span id="vram-used">0</span> / <span id="vram-total">0</span> GB</span>
+                <span class="body-strong" id="vram-percent">0%</span>
+              </div>
+            </div>
+            <!-- GPU Util -->
+            <div class="stat-card">
+              <div class="stat-label">GPU Util</div>
+              <div class="progress-bar" style="margin: 6px 0;">
+                <div class="progress-fill" id="gpu-util-bar" style="width: 0%;"></div>
+              </div>
+              <div class="body-sm" style="display: flex; justify-content: flex-end;">
+                <span class="body-strong" id="gpu-util">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden elements for JS compatibility -->
+      <!-- Visualizer -->
+      <div id="audio-visualizer" style="display: none;">
+        <div id="visualizer-container">
+          <div data-index="0"></div><div data-index="1"></div><div data-index="2"></div><div data-index="3"></div><div data-index="4"></div>
+        </div>
+        <p id="visualizer-status">System ready</p>
+      </div>
+      <canvas id="audio-waveform" style="display: none;"></canvas>
+      <div id="status" style="display: none;"></div>
+    </section>
+
+    <!-- ============ Model Manager Page (hidden placeholder for JS compat) ============ -->
+    <section id="page-models" style="display: none;"></section>
+
+  </main>
+
+  <!-- ── Footer ─────────────────────────── -->
+  <footer class="footer">
+    <div class="container" style="text-align: center;">
+      <p class="body-sm text-muted">
+        VoxEngine — Powered by FunASR + LM Studio + GSV-TTS-Lite
+      </p>
+    </div>
+  </footer>
+
+  <!-- ── Socket.IO ──────────────────────── -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+  <!-- ── Main JavaScript ────────────────── -->
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+  <!-- ── Page Scripts ───────────────────── -->
+  <script>
+    // Note: switchPage() and switchModelTab() are defined in main.js
+
+    // ── Mic Toggle ────────────────────────
+    function toggleMic() {
+      const btn = document.getElementById('mic-btn');
+      const status = document.getElementById('mic-status');
+      if (btn.classList.contains('recording')) {
+        btn.classList.remove('recording');
+        btn.querySelector('i').className = 'fas fa-microphone';
+        status.textContent = 'Ready';
+        status.className = 'status-indicator idle';
+        if (typeof stopRecognition === 'function') stopRecognition();
+      } else {
+        btn.classList.add('recording');
+        btn.querySelector('i').className = 'fas fa-microphone-alt';
+        status.textContent = 'Listening...';
+        status.className = 'status-indicator processing';
+        if (typeof startRecognition === 'function') startRecognition();
+      }
+    }
+
+    // ── Audio Player ──────────────────────
+    let audioCtx = null;
+    let audioSource = null;
+
+    function showAudioPlayer(audioUrl) {
+      const player = document.getElementById('audio-player');
+      const audio = document.getElementById('tts-audio-element');
+      player.classList.remove('hidden');
+      document.getElementById('audio-play-btn').disabled = false;
+      audio.src = audioUrl;
+      audio.onloadedmetadata = function() {
+        document.getElementById('audio-time').textContent =
+          '00:00 / ' + formatTime(audio.duration);
+      };
+    }
+
+    function hideAudioPlayer() {
+      document.getElementById('audio-player').classList.add('hidden');
+    }
+
+    function toggleAudioPlayback() {
+      const audio = document.getElementById('tts-audio-element');
+      const btn = document.getElementById('audio-play-btn');
+      if (audio.paused) {
+        audio.play();
+        btn.innerHTML = '<i class="fas fa-pause"></i>';
+      } else {
+        audio.pause();
+        btn.innerHTML = '<i class="fas fa-play"></i>';
+      }
+    }
+
+    function seekAudio(e) {
+      const audio = document.getElementById('tts-audio-element');
+      if (!audio.duration) return;
+      const progress = document.getElementById('audio-progress');
+      const rect = progress.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      audio.currentTime = ratio * audio.duration;
+    }
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    // ── Debug Log ─────────────────────────
+    function toggleDebugLog() {
+      document.getElementById('debug-log-collapsible').classList.toggle('open');
+    }
+
+    function addLogMessage(level, message) {
+      const log = document.getElementById('debug-log');
+      if (!log) return;
+      const now = new Date();
+      const ts = now.toTimeString().slice(0, 8);
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + level;
+      entry.innerHTML = '<span class="log-timestamp">' + ts + '</span>' + message;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // ── Pipeline State ────────────────────
+    function setPipelineStep(step, state) {
+      const stepEl = document.getElementById('pipeline-step-' + step);
+      if (!stepEl) return;
+      stepEl.className = 'pipeline-step ' + state;
+    }
+
+    // ── Audio Progress Update ─────────────
+    const ttsAudioEl = document.getElementById('tts-audio-element');
+    ttsAudioEl.addEventListener('timeupdate', function() {
+      const fill = document.getElementById('audio-progress-fill');
+      const time = document.getElementById('audio-time');
+      if (ttsAudioEl.duration) {
+        const pct = (ttsAudioEl.currentTime / ttsAudioEl.duration) * 100;
+        fill.style.width = pct + '%';
+        time.textContent = formatTime(ttsAudioEl.currentTime) + ' / ' + formatTime(ttsAudioEl.duration);
+      }
+    });
+    ttsAudioEl.addEventListener('ended', function() {
+      document.getElementById('audio-play-btn').innerHTML = '<i class="fas fa-play"></i>';
+      document.getElementById('audio-progress-fill').style.width = '0%';
+    });
+    ttsAudioEl.addEventListener('play', function() {
+      document.getElementById('audio-play-btn').innerHTML = '<i class="fas fa-pause"></i>';
+    });
+    ttsAudioEl.addEventListener('pause', function() {
+      document.getElementById('audio-play-btn').innerHTML = '<i class="fas fa-play"></i>';
+    });
+
+    // ── Audio Visualizer (for JS compat) ──
+    class AudioVisualizer {
+      constructor() {
+        this.bars = document.querySelectorAll('[data-index]');
+        this.statusElement = document.getElementById('visualizer-status');
+        this.levels = [0, 0, 0, 0, 0];
+        this.targetLevels = [0, 0, 0, 0, 0];
+        this.barWeights = [0.5, 0.8, 1.0, 0.75, 0.55];
+        this.attack = 0.4;
+        this.release = 0.15;
+        this.animationId = null;
+      }
+      updateRMS(rms) {
+        for (let i = 0; i < this.bars.length; i++) {
+          const maxHeight = 100 * this.barWeights[i];
+          this.targetLevels[i] = Math.min(rms * maxHeight * 2, maxHeight);
+        }
+      }
+      animate() {
+        for (let i = 0; i < this.bars.length; i++) {
+          if (this.targetLevels[i] > this.levels[i]) {
+            this.levels[i] += (this.targetLevels[i] - this.levels[i]) * this.attack;
+          } else {
+            this.levels[i] += (this.targetLevels[i] - this.levels[i]) * this.release;
+          }
+          const jitter = (Math.random() - 0.5) * 4;
+          const finalHeight = Math.max(2, this.levels[i] + jitter);
+          this.bars[i].style.height = finalHeight + '%';
+        }
+        this.animationId = requestAnimationFrame(() => this.animate());
+      }
+      start() {
+        if (!this.animationId) this.animate();
+      }
+      stop() {
+        if (this.animationId) {
+          cancelAnimationFrame(this.animationId);
+          this.animationId = null;
+          this.levels = [0, 0, 0, 0, 0];
+          this.targetLevels = [0, 0, 0, 0, 0];
+          const defaultHeights = [10, 30, 50, 35, 15];
+          this.bars.forEach((bar, i) => {
+            bar.style.height = defaultHeights[i] + '%';
+          });
+        }
+      }
+      updateStatus(text) {
+        if (this.statusElement) {
+          this.statusElement.textContent = text;
+        }
+      }
+    }
+
+    let audioVisualizer = new AudioVisualizer();
+
+    function updateAudioVisualization(rms) {
+      if (audioVisualizer) audioVisualizer.updateRMS(rms);
+    }
+
+    function updateStatus(status, text) {
+      if (audioVisualizer) audioVisualizer.updateStatus(text);
+    }
+
+    // ── Socket.IO Events (real-time streaming) ──
+    // Uses existing socket from main.js (window.socket)
+    function getSocket() {
+      return window.socket || null;
+    }
+
+    // Attempt to attach listeners once socket is available
+    let socketListenersAttached = false;
+
+    function attachSocketListeners() {
+      const socket = getSocket();
+      if (!socket || socketListenersAttached) return;
+      socketListenersAttached = true;
+
+      // Listen for additional events alongside main.js handlers
+      socket.on('asr_partial', (data) => {
+        const content = document.getElementById('recognition-content');
+        if (content) {
+          const text = data.text || '';
+          content.innerHTML = '<span class="streaming-text streaming-cursor">' +
+            escapeHtml(text) + '</span>';
+        }
+        setPipelineStep('asr', 'active');
+      });
+
+      socket.on('asr_final', (data) => {
+        const content = document.getElementById('recognition-content');
+        if (content) {
+          const text = data.text || '';
+          content.innerHTML = '<span class="streaming-text">' + escapeHtml(text) + '</span>';
+        }
+        setPipelineStep('asr', 'complete');
+        setPipelineStep('translate', 'active');
+        if (document.getElementById('connector-1')) {
+          document.getElementById('connector-1').classList.add('flowing');
+        }
+        if (data.total_time) {
+          document.getElementById('stt-time').textContent = data.total_time;
+          document.getElementById('asr-time').textContent = data.total_time;
+        }
+        if (data.segments !== undefined) {
+          document.getElementById('stt-segments').textContent = data.segments;
+        }
+      });
+
+      socket.on('translation_chunk', (data) => {
+        const content = document.getElementById('translation-content');
+        if (content) {
+          const text = data.text || data.chunk || '';
+          content.innerHTML = '<span class="streaming-text streaming-cursor">' +
+            escapeHtml(text) + '</span>';
+        }
+        setPipelineStep('translate', 'active');
+      });
+
+      socket.on('translation_complete', (data) => {
+        const content = document.getElementById('translation-content');
+        if (content) {
+          const text = data.text || data.translated_text || '';
+          content.innerHTML = '<span class="streaming-text">' + escapeHtml(text) + '</span>';
+        }
+        setPipelineStep('translate', 'complete');
+        setPipelineStep('tts', 'active');
+        if (document.getElementById('connector-2')) {
+          document.getElementById('connector-2').classList.add('flowing');
+        }
+        if (data.total_time) {
+          document.getElementById('translation-time').textContent = data.total_time;
+          document.getElementById('translation-total-stat').textContent = data.total_time;
+        }
+        if (data.ttft) {
+          document.getElementById('translation-ttft').textContent = data.ttft;
+          document.getElementById('translation-ttft-stat').textContent = data.ttft;
+        }
+        if (data.chars) {
+          document.getElementById('translation-chars').textContent = data.chars;
+        }
+      });
+
+      socket.on('tts_audio', (data) => {
+        if (data.url) {
+          showAudioPlayer(data.url);
+          setPipelineStep('tts', 'complete');
+          if (data.time) {
+            document.getElementById('tts-time').textContent = data.time;
+          }
+        } else if (data.base64 || data.audio) {
+          const audioData = data.base64 || data.audio;
+          const byteStr = atob(audioData);
+          const byteArr = new Uint8Array(byteStr.length);
+          for (let i = 0; i < byteStr.length; i++) byteArr[i] = byteStr.charCodeAt(i);
+          const blob = new Blob([byteArr], { type: 'audio/wav' });
+          const url = URL.createObjectURL(blob);
+          showAudioPlayer(url);
+          setPipelineStep('tts', 'complete');
+          if (data.time) document.getElementById('tts-time').textContent = data.time;
+        }
+      });
+
+      socket.on('translation_status', (data) => {
+        const indicator = document.getElementById('translation-status-indicator');
+        const dot = document.getElementById('translation-status-dot');
+        const text = document.getElementById('translation-status-text');
+        if (indicator) indicator.className = 'status-indicator ' + (data.status || 'idle');
+        if (dot) dot.className = 'status-dot ' + (data.status || 'loading');
+        if (text) text.textContent = data.message || data.status || 'Idle';
+      });
+
+      socket.on('status_update', (data) => {
+        addLogMessage('info', data.message || data.status || '');
+        if (data.status === 'listening') {
+          setPipelineStep('asr', 'active');
+        }
+      });
+
+      socket.on('log_message', (data) => {
+        addLogMessage(data.level || 'info', data.message || '');
+      });
+
+      socket.on('error', (data) => {
+        addLogMessage('error', data.message || 'Unknown error');
+      });
+    }
+
+    // Retry attaching listeners if socket isn't ready yet
+    let attachRetries = 0;
+    const MAX_ATTACH_RETRIES = 50;
+    const attachInterval = setInterval(function() {
+      if (getSocket()) {
+        attachSocketListeners();
+        clearInterval(attachInterval);
+      } else if (++attachRetries >= MAX_ATTACH_RETRIES) {
+        clearInterval(attachInterval);
+      }
+    }, 100);
+
+    // ── Emit helpers ──────────────────────
+    window.emitStartStream = function(config) {
+      const s = getSocket();
+      if (s) s.emit('start_stream', config || {});
+    };
+    window.emitStopStream = function() {
+      const s = getSocket();
+      if (s) s.emit('stop_stream');
+    };
+    window.emitAudioChunk = function(chunk) {
+      const s = getSocket();
+      if (s) s.emit('audio_chunk', chunk);
+    };
+    window.emitGetModels = function() {
+      const s = getSocket();
+      if (s) s.emit('get_models');
+    };
+
+    // ── Utility ───────────────────────────
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ── Initialize ────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+      audioVisualizer.start();
+      addLogMessage('info', 'VoxEngine ready — Connect your microphone to begin');
+    });
+  </script>
+</body>
+</html>

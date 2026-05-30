@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation Debug - Streaming Translation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* ── Page-specific: form grouping ────────── */
+        .select-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+
+        /* ── Page-specific: source text display ──── */
+        .source-text {
+            font-size: 1rem;
+            color: var(--color-muted);
+            padding: var(--spacing-md);
+            background: rgba(139, 92, 246, 0.05);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-md);
+            border-left: 3px solid var(--color-data);
+            line-height: 1.6;
+        }
+
+        /* ── Page-specific: translation output ───── */
+        .translation-text {
+            font-size: 1.125rem;
+            color: var(--color-body-strong);
+            line-height: 1.7;
+            min-height: 60px;
+            padding: var(--spacing-md);
+            background: rgba(22, 163, 74, 0.04);
+            border-radius: var(--radius-md);
+            border-left: 3px solid var(--color-success);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .translation-text .pending {
+            color: var(--color-muted-soft);
+            font-style: italic;
+        }
+
+        /* ── Page-specific: streaming chunks ─────── */
+        .chunk-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: var(--spacing-md);
+        }
+
+        .chunk-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chunk-list::-webkit-scrollbar-track {
+            background: var(--color-hairline);
+            border-radius: 4px;
+        }
+
+        .chunk-list::-webkit-scrollbar-thumb {
+            background: var(--color-muted-soft);
+            border-radius: 4px;
+        }
+
+        .chunk-entry {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            padding: var(--spacing-xs) var(--spacing-sm);
+            margin-bottom: 4px;
+            border-radius: 4px;
+            background: rgba(139, 92, 246, 0.05);
+            color: var(--color-data);
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        .chunk-entry .chunk-index {
+            color: var(--color-muted-soft);
+            min-width: 30px;
+        }
+
+        .chunk-entry .chunk-content {
+            color: var(--color-body-strong);
+        }
+
+        /* ── Page-specific: language badges ──────── */
+        .lang-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: var(--radius-pill);
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--color-surface-strong);
+            color: var(--color-body-strong);
+        }
+
+        .lang-tag.source {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--color-data);
+        }
+
+        .lang-tag.target {
+            background: rgba(22, 163, 74, 0.1);
+            color: var(--color-success);
+        }
+
+        /* ── Page-specific: button group ─────────── */
+        .button-group {
+            display: flex;
+            gap: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+
+        .button-group .btn {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        /* ── Page-specific: control layout ───────── */
+        .control-section {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+
+        /* ── Page-specific: translation panel ────── */
+        .translation-panel {
+            background: var(--color-canvas-soft);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            min-height: 200px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .panel-timestamp {
+            font-size: 0.8125rem;
+            color: var(--color-muted);
+            font-family: var(--font-mono);
+        }
+    </style>
+</head>
+<body>
+    <!-- Gradient Orbs for background atmosphere -->
+    <div class="gradient-orb orb-lavender" style="width: 600px; height: 600px; top: -200px; right: -150px;"></div>
+    <div class="gradient-orb orb-sky" style="width: 500px; height: 500px; bottom: -150px; left: -100px;"></div>
+    <div class="gradient-orb orb-mint" style="width: 400px; height: 400px; top: 50%; left: 40%;"></div>
+
+    <div class="container container-wide" style="position: relative; z-index: 1; padding-top: var(--spacing-xl); padding-bottom: var(--spacing-xl);">
+        <header class="mb-lg">
+            <h1 class="display-md"><i class="fas fa-language"></i> Translation Streaming Debug</h1>
+            <p class="body-md text-muted mt-xs">Real-time translation with streaming output &amp; performance analysis</p>
+        </header>
+
+        <div class="grid grid-2">
+            <!-- Controls Panel -->
+            <div class="card anim-fadeInUp anim-delay-1">
+                <div class="card-header">
+                    <i class="fas fa-sliders-h"></i>
+                    <h2>Translation Controls</h2>
+                </div>
+                
+                <div class="control-section">
+                    <div class="select-wrapper">
+                        <label class="form-label" for="provider-select">Provider</label>
+                        <select id="provider-select" class="form-input">
+                            <option value="lps" selected>LPS (Local Python Server)</option>
+                            <option value="lmstudio">LM Studio</option>
+                        </select>
+                    </div>
+
+                    <div class="select-wrapper">
+                        <label class="form-label" for="model-select">Model</label>
+                        <select id="model-select" class="form-input">
+                            <option value="">Loading models...</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: var(--spacing-sm);">
+                        <div class="select-wrapper" style="flex: 1;">
+                            <label class="form-label" for="source-lang-select">Source Language</label>
+                            <select id="source-lang-select" class="form-input">
+                                <option value="zh" selected>Chinese</option>
+                                <option value="en">English</option>
+                                <option value="ja">Japanese</option>
+                                <option value="ko">Korean</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="es">Spanish</option>
+                            </select>
+                        </div>
+                        <div class="select-wrapper" style="flex: 1;">
+                            <label class="form-label" for="target-lang-select">Target Language</label>
+                            <select id="target-lang-select" class="form-input">
+                                <option value="en" selected>English</option>
+                                <option value="zh">Chinese</option>
+                                <option value="ja">Japanese</option>
+                                <option value="ko">Korean</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="es">Spanish</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="select-wrapper">
+                        <label class="form-label" for="input-text">Source Text</label>
+                        <textarea id="input-text" class="form-input" placeholder="Enter text to translate..."></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="translate-btn" class="btn btn-primary">
+                            <i class="fas fa-play"></i> Translate
+                        </button>
+                        <button id="clear-btn" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+
+                    <div id="status-indicator" class="status-indicator idle">
+                        <i class="fas fa-circle"></i>
+                        <span>Ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Translation Output Panel -->
+            <div class="card anim-fadeInUp anim-delay-2">
+                <div class="card-header">
+                    <i class="fas fa-stream"></i>
+                    <h2>Translation Output</h2>
+                </div>
+
+                <div class="translation-panel">
+                    <div class="panel-header">
+                        <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                            <span class="lang-tag source" id="source-lang-tag">ZH</span>
+                            <i class="fas fa-arrow-right text-muted caption"></i>
+                            <span class="lang-tag target" id="target-lang-tag">EN</span>
+                        </div>
+                        <span class="panel-timestamp" id="result-timestamp">--:--:--</span>
+                    </div>
+
+                    <div class="source-text" id="source-text-display">
+                        <span style="color: var(--color-muted-soft);">Source text will appear here...</span>
+                    </div>
+
+                    <div class="translation-text" id="translation-text">
+                        <span class="pending">Waiting for translation...</span>
+                    </div>
+
+                    <div class="progress-bar mt-sm">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-4 mt-lg">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-ttft">--</div>
+                        <div class="stat-label">TTFT (Time to First Token)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total-time">--</div>
+                        <div class="stat-label">Total Time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-chars">0</div>
+                        <div class="stat-label">Characters</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-tokens">0</div>
+                        <div class="stat-label">Tokens (est.)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Streaming Chunks Panel -->
+            <div class="card anim-fadeInUp anim-delay-3">
+                <div class="card-header">
+                    <i class="fas fa-cubes"></i>
+                    <h2>Streaming Chunks</h2>
+                </div>
+                
+                <div class="chunk-list" id="chunk-list">
+                    <span style="color: var(--color-muted-soft);">Chunks will appear here during streaming...</span>
+                </div>
+            </div>
+
+            <!-- Debug Log Panel -->
+            <div class="card anim-fadeInUp anim-delay-4">
+                <div class="card-header">
+                    <i class="fas fa-terminal"></i>
+                    <h2>Debug Log</h2>
+                </div>
+                
+                <div class="log-panel" id="log-panel"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        
+        let isTranslating = false;
+        let chunkCount = 0;
+        let translationStartTime = null;
+        let firstChunkReceived = false;
+        
+        const providerSelect = document.getElementById('provider-select');
+        const modelSelect = document.getElementById('model-select');
+        const sourceLangSelect = document.getElementById('source-lang-select');
+        const targetLangSelect = document.getElementById('target-lang-select');
+        const inputText = document.getElementById('input-text');
+        const translateBtn = document.getElementById('translate-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const statusIndicator = document.getElementById('status-indicator');
+        const sourceTextDisplay = document.getElementById('source-text-display');
+        const translationText = document.getElementById('translation-text');
+        const resultTimestamp = document.getElementById('result-timestamp');
+        const progressFill = document.getElementById('progress-fill');
+        const chunkList = document.getElementById('chunk-list');
+        const logPanel = document.getElementById('log-panel');
+        const sourceLangTag = document.getElementById('source-lang-tag');
+        const targetLangTag = document.getElementById('target-lang-tag');
+        
+        const statTTFT = document.getElementById('stat-ttft');
+        const statTotalTime = document.getElementById('stat-total-time');
+        const statChars = document.getElementById('stat-chars');
+        const statTokens = document.getElementById('stat-tokens');
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function updateStatus(status) {
+            statusIndicator.className = `status-indicator ${status}`;
+            const icon = statusIndicator.querySelector('i');
+            const text = statusIndicator.querySelector('span');
+            
+            switch(status) {
+                case 'idle':
+                    icon.className = 'fas fa-circle';
+                    text.textContent = 'Ready';
+                    break;
+                case 'translating':
+                    icon.className = 'fas fa-circle fa-spin';
+                    text.textContent = 'Translating...';
+                    break;
+                case 'complete':
+                    icon.className = 'fas fa-check-circle';
+                    text.textContent = 'Complete';
+                    break;
+                case 'error':
+                    icon.className = 'fas fa-exclamation-circle';
+                    text.textContent = 'Error';
+                    break;
+            }
+        }
+
+        function updateLangTags() {
+            const sourceMap = {
+                'zh': 'ZH', 'en': 'EN', 'ja': 'JA', 'ko': 'KO',
+                'fr': 'FR', 'de': 'DE', 'es': 'ES'
+            };
+            const targetMap = { ...sourceMap };
+            sourceLangTag.textContent = sourceMap[sourceLangSelect.value] || sourceLangSelect.value.toUpperCase();
+            targetLangTag.textContent = targetMap[targetLangSelect.value] || targetLangSelect.value.toUpperCase();
+        }
+
+        function resetStats() {
+            chunkCount = 0;
+            translationStartTime = null;
+            firstChunkReceived = false;
+            statTTFT.textContent = '--';
+            statTotalTime.textContent = '--';
+            statChars.textContent = '0';
+            statTokens.textContent = '0';
+            progressFill.style.width = '0%';
+            chunkList.innerHTML = '<span style="color: var(--color-muted-soft);">Chunks will appear here during streaming...</span>';
+        }
+
+        function startTranslation() {
+            const text = inputText.value.trim();
+            if (!text) {
+                addLog('Please enter text to translate', 'warning');
+                return;
+            }
+
+            if (isTranslating) return;
+
+            isTranslating = true;
+            resetStats();
+            translationStartTime = Date.now();
+            
+            sourceTextDisplay.textContent = text;
+            translationText.innerHTML = '<span class="streaming-cursor"></span>';
+            resultTimestamp.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            updateStatus('translating');
+            translateBtn.disabled = true;
+            updateLangTags();
+
+            const provider = providerSelect.value;
+            const modelName = modelSelect.value;
+            const sourceLang = sourceLangSelect.value;
+            const targetLang = targetLangSelect.value;
+
+            addLog(`Starting translation: ${sourceLang}→${targetLang}, Provider: ${provider}, Model: ${modelName || 'default'}`, 'info');
+            addLog(`Source text (${text.length} chars): "${text.substring(0, 80)}${text.length > 80 ? '...' : ''}"`, 'data');
+
+            socket.emit('translate_debug_text', {
+                text: text,
+                provider: provider,
+                model_name: modelName,
+                source_lang: sourceLang,
+                target_lang: targetLang
+            });
+        }
+
+        function clearAll() {
+            inputText.value = '';
+            sourceTextDisplay.innerHTML = '<span style="color: var(--color-muted-soft);">Source text will appear here...</span>';
+            translationText.innerHTML = '<span class="pending">Waiting for translation...</span>';
+            resultTimestamp.textContent = '--:--:--';
+            resetStats();
+            updateStatus('idle');
+            translateBtn.disabled = false;
+            isTranslating = false;
+            logPanel.innerHTML = '';
+            addLog('All data cleared', 'info');
+        }
+
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            addLog('Connected to server', 'success');
+        });
+
+        socket.on('disconnect', () => {
+            addLog('Disconnected from server', 'warning');
+            updateStatus('idle');
+            isTranslating = false;
+            translateBtn.disabled = false;
+        });
+
+        socket.on('translation_status', (data) => {
+            addLog(`Status: ${data.message}`, 'info');
+        });
+
+        socket.on('translation_chunk', (data) => {
+            const chunk = data.chunk || '';
+            const translation = data.translation || '';
+            const charCount = data.char_count || 0;
+
+            chunkCount++;
+            
+            if (!firstChunkReceived && translationStartTime) {
+                firstChunkReceived = true;
+                const ttft = ((Date.now() - translationStartTime) / 1000).toFixed(3);
+                statTTFT.textContent = ttft + 's';
+                addLog(`First chunk received! TTFT: ${ttft}s`, 'success');
+            }
+
+            translationText.innerHTML = translation + '<span class="streaming-cursor"></span>';
+            statChars.textContent = charCount;
+            statTokens.textContent = Math.round(charCount / 3.5);
+
+            // Update progress bar (estimate based on input length ratio)
+            const estimatedRatio = Math.min(charCount / (sourceTextDisplay.textContent.length * 1.5 + 20), 0.95);
+            progressFill.style.width = (estimatedRatio * 100) + '%';
+
+            // Add to chunk list
+            if (chunkCount === 1) {
+                chunkList.innerHTML = '';
+            }
+            const chunkEntry = document.createElement('div');
+            chunkEntry.className = 'chunk-entry';
+            chunkEntry.innerHTML = `<span class="chunk-index">#${chunkCount}</span><span class="chunk-content">${escapeHtml(chunk)}</span>`;
+            chunkList.appendChild(chunkEntry);
+            chunkList.scrollTop = chunkList.scrollHeight;
+        });
+
+        socket.on('translation_complete', (data) => {
+            const translation = data.translation || '';
+            const totalTime = data.total_time || '0s';
+            const chars = data.chars || 0;
+            const firstChunkTime = data.first_chunk_time || 'N/A';
+
+            translationText.innerHTML = translation || '<span class="pending">(empty result)</span>';
+            progressFill.style.width = '100%';
+            
+            statChars.textContent = chars;
+            statTokens.textContent = Math.round(chars / 3.5);
+            statTotalTime.textContent = totalTime;
+            
+            if (!firstChunkReceived && firstChunkTime) {
+                statTTFT.textContent = firstChunkTime + 's';
+            }
+
+            isTranslating = false;
+            translateBtn.disabled = false;
+            updateStatus('complete');
+            resultTimestamp.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+
+            addLog(`Translation complete: ${chars} chars, ${chunkCount} chunks, Total: ${totalTime}, TTFT: ${firstChunkTime}`, 'success');
+            
+            // Remove cursor
+            translationText.innerHTML = translation || '<span class="pending">(empty result)</span>';
+        });
+
+        socket.on('translation_error', (data) => {
+            addLog(`Translation error: ${data.message}`, 'error');
+            updateStatus('error');
+            isTranslating = false;
+            translateBtn.disabled = false;
+            translationText.innerHTML = `<span style="color: var(--color-error);">Error: ${escapeHtml(data.message)}</span>`;
+            progressFill.style.width = '0%';
+        });
+
+        socket.on('error', (data) => {
+            addLog(`Server error: ${data.message}`, 'error');
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event listeners
+        translateBtn.addEventListener('click', startTranslation);
+        clearBtn.addEventListener('click', clearAll);
+        
+        sourceLangSelect.addEventListener('change', updateLangTags);
+        targetLangSelect.addEventListener('change', updateLangTags);
+
+        // Keyboard shortcut: Ctrl+Enter to translate
+        inputText.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                startTranslation();
+            }
+        });
+
+        // Initialize
+        async function loadTranslationModels() {
+            try {
+                const resp = await fetch('/api/providers');
+                const providers = await resp.json();
+                const provider = providerSelect.value;
+                
+                modelSelect.innerHTML = '';
+                
+                if (provider === 'lps' && providers.lps && providers.lps.models && providers.lps.models.length > 0) {
+                    providers.lps.models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.model_path;
+                        opt.textContent = `${m.vendor}/${m.model_name} (${m.size_mb}MB)`;
+                        modelSelect.appendChild(opt);
+                    });
+                    
+                    // Select default from config
+                    const resp2 = await fetch('/api/settings');
+                    const settings = await resp2.json();
+                    const defaultModel = settings.translation?.default_model || '';
+                    if (defaultModel) modelSelect.value = defaultModel;
+                    
+                    addLog(`Loaded ${providers.lps.models.length} LPS model(s)`, 'success');
+                } else if (provider === 'lmstudio') {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'Auto-detect from LM Studio';
+                    modelSelect.appendChild(opt);
+                    addLog('Using LM Studio (auto-detect model)', 'info');
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No models available';
+                    modelSelect.appendChild(opt);
+                }
+            } catch (e) {
+                modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+                addLog(`Failed to load models: ${e}`, 'error');
+            }
+        }
+        
+        providerSelect.addEventListener('change', () => loadTranslationModels());
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLangTags();
+            addLog('Translation Debug page loaded', 'info');
+            addLog('Tip: Press Ctrl+Enter to translate', 'info');
+            loadTranslationModels();
+            
+            // Focus on input
+            setTimeout(() => inputText.focus(), 300);
+        });
+    </script>
+</body>
+</html>

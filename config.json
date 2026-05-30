@@ -1,0 +1,65 @@
+{
+  "system": {
+    "enable_monitor": false
+  },
+  "server": {
+    "port": "5000",
+    "enable_cors": true,
+    "debug": true
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "chunk_size": 4096,
+    "channels": 1,
+    "format": "paInt16"
+  },
+  "translation": {
+    "default_provider": "lps",
+    "default_model": "tencent/Hy-MT2-1.8B-2Bit-GGUF/Hy-MT2-1.8B-2Bit.gguf"
+  },
+  "lps": {
+    "enabled": true,
+    "backend": "openai_compatible",
+    "openai_url": "http://localhost:8080/v1",
+    "models_dir": "models/translate",
+    "default_model": "tencent/Hy-MT2-1.8B-2Bit-GGUF/Hy-MT2-1.8B-2Bit.gguf",
+    "n_ctx": 2048,
+    "n_threads": 4,
+    "n_gpu_layers": 0,
+    "temperature": 0.3,
+    "max_tokens": 512,
+    "top_p": 0.8,
+    "verbose": false
+  },
+  "vllm": {
+    "auto_start": true
+  },
+  "ollama": {
+    "url": "http://localhost:11434",
+    "timeout": 60,
+    "default_model": "Qwen2.5:3b"
+  },
+  "vosk": {
+    "model_path": "models/stt/vosk-model-small-cn-0.22"
+  },
+  "performance": {
+    "max_threads": 4,
+    "buffer_size": 4096,
+    "ping_timeout": 60,
+    "ping_interval": 25
+  },
+  "llama_cpp": {
+    "auto_start": true,
+    "version": "auto",
+    "model_path": ""
+  },
+  "speech": {
+    "default_microphone": "auto",
+    "model": "",
+    "sample_rate": "16000"
+  },
+  "tts": {
+    "enabled": true,
+    "default_model": "s2Gv2ProPlus"
+  }
+}

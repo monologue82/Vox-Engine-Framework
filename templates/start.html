@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxEngine — Start</title>
+
+    <!-- Dark Mode (must run before paint) -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Shared Design System -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        /* ── Start Page Specific Styles ───── */
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .start-container {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 60px;
+            max-width: 900px;
+            width: 100%;
+            animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .start-container.fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+
+        .logo-container {
+            margin-bottom: 80px;
+            position: relative;
+        }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: var(--color-surface-card);
+            border: 1px solid var(--color-hairline);
+            border-radius: var(--radius-pill);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+        }
+
+        .logo-text {
+            font-family: var(--font-display);
+            font-size: 80px;
+            font-weight: 300;
+            letter-spacing: -3px;
+            color: var(--color-ink);
+            line-height: 1;
+            display: inline-block;
+        }
+
+        .subtitle {
+            font-family: var(--font-display);
+            font-size: 18px;
+            color: var(--color-muted);
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            margin-top: 20px;
+            font-weight: 500;
+            opacity: 0;
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+        }
+
+        /* ── Start Button ─────────────────── */
+        .start-button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 60px;
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both;
+        }
+
+        .btn-start {
+            padding: 18px 36px;
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-start.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .btn-start.loading i {
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* ── Advanced Options Panel ───────── */
+        .advanced-options {
+            margin-top: 50px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            background: var(--color-surface-card);
+            border: 1px solid var(--color-hairline);
+            border-radius: var(--radius-xl);
+            padding: 36px;
+            box-shadow: var(--shadow-rest);
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.8s both;
+        }
+
+        .advanced-options h3 {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 500;
+            color: var(--color-ink);
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .advanced-options h3 i {
+            color: var(--color-primary);
+            font-size: 24px;
+        }
+
+        .component-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .component-option {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 18px;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            background: var(--color-canvas-soft);
+            border: 1px solid transparent;
+        }
+
+        .component-option:hover {
+            background: var(--color-surface-strong);
+            border-color: var(--color-hairline);
+        }
+
+        .component-option input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--color-primary);
+            flex-shrink: 0;
+        }
+
+        .component-option label {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--color-body-strong);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .component-option label i {
+            color: var(--color-primary);
+            font-size: 16px;
+            width: 22px;
+            text-align: center;
+        }
+
+        .component-option .tag {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--color-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            background: var(--color-surface-card);
+            border-radius: var(--radius-pill);
+            border: 1px solid var(--color-hairline);
+            flex-shrink: 0;
+        }
+
+        /* ── Theme Toggle ─────────────────── */
+        .theme-toggle-start {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            background: var(--color-surface-card);
+            border: 1px solid var(--color-hairline);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 100;
+            box-shadow: var(--shadow-rest);
+        }
+
+        .theme-toggle-start:hover {
+            transform: scale(1.08);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .theme-toggle-start i {
+            font-size: 1.2rem;
+            color: var(--color-primary);
+        }
+
+        /* ── Responsive ───────────────────── */
+        @media (max-width: 768px) {
+            .logo-text {
+                font-size: 56px;
+                letter-spacing: -2px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+                letter-spacing: 3px;
+            }
+
+            .start-container {
+                padding: 30px;
+            }
+
+            .advanced-options {
+                padding: 28px;
+            }
+
+            .component-options {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ── Gradient Orbs ──────────────────── -->
+    <div class="gradient-orb orb-mint" style="width: 420px; height: 420px; top: -120px; left: -80px;"></div>
+    <div class="gradient-orb orb-peach" style="width: 320px; height: 320px; top: 200px; right: -60px;"></div>
+    <div class="gradient-orb orb-lavender" style="width: 360px; height: 360px; bottom: -120px; left: 15%;"></div>
+    <div class="gradient-orb orb-sky" style="width: 280px; height: 280px; bottom: 200px; right: 15%;"></div>
+
+    <!-- ── Theme Toggle ───────────────────── -->
+    <div class="theme-toggle-start" id="theme-toggle" title="切换主题">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <!-- ── Main Content ───────────────────── -->
+    <div class="start-container" id="startContainer">
+        <div class="logo-container">
+            <div class="logo-badge">
+                <i class="fas fa-rocket"></i>
+                <span>Next Gen AI</span>
+            </div>
+            <h1 class="logo-text">VOXENGINE</h1>
+            <p class="subtitle">Intelligent Speech Processing</p>
+        </div>
+
+        <div class="start-button-group">
+            <button class="btn btn-primary btn-start" id="startButton">
+                <i class="fas fa-play-circle"></i>
+                加载系统组件
+            </button>
+            <button class="btn btn-outline btn-start" id="advancedButton">
+                <i class="fas fa-sliders-h"></i>
+                高级启动选项
+            </button>
+        </div>
+
+        <div class="advanced-options" id="advancedOptions" style="display: none;">
+            <h3><i class="fas fa-microchip"></i> 高级启动选项</h3>
+            <div class="component-options">
+                <div class="component-option">
+                    <input type="checkbox" id="core" checked disabled>
+                    <label for="core"><i class="fas fa-cog"></i> 核心引擎</label>
+                    <span class="tag">必需</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="speech" checked>
+                    <label for="speech"><i class="fas fa-microphone"></i> 语音识别</label>
+                    <span class="tag">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="translation" checked>
+                    <label for="translation"><i class="fas fa-language"></i> 翻译引擎</label>
+                    <span class="tag">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="tts" checked>
+                    <label for="tts"><i class="fas fa-volume-up"></i> 文本转语音</label>
+                    <span class="tag">推荐</span>
+                </div>
+                <div class="component-option">
+                    <input type="checkbox" id="models" checked>
+                    <label for="models"><i class="fas fa-database"></i> 模型管理</label>
+                    <span class="tag">推荐</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="version-tag">VoxEngine v0.4.1</div>
+
+    <script>
+        // ── Theme ─────────────────────────────
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const toggle = document.getElementById('theme-toggle');
+
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                toggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                toggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+
+            toggle.addEventListener('click', function() {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+
+                if (newTheme === 'dark') {
+                    this.innerHTML = '<i class="fas fa-sun"></i>';
+                } else {
+                    this.innerHTML = '<i class="fas fa-moon"></i>';
+                }
+            });
+        })();
+
+        // ── Advanced Options Toggle ───────────
+        document.getElementById('advancedButton').addEventListener('click', function() {
+            const advancedOptions = document.getElementById('advancedOptions');
+            const isHidden = advancedOptions.style.display === 'none';
+            advancedOptions.style.display = isHidden ? 'block' : 'none';
+
+            const lang = getCurrentLanguage();
+            if (isHidden) {
+                this.innerHTML = '<i class="fas fa-chevron-up"></i> ' + (lang === 'zh-CN' ? '收起选项' : 'Hide Options');
+            } else {
+                this.innerHTML = '<i class="fas fa-sliders-h"></i> ' + (lang === 'zh-CN' ? '高级启动选项' : 'Advanced Start Options');
+            }
+        });
+
+        // ── Start Button ──────────────────────
+        document.getElementById('startButton').addEventListener('click', function() {
+            const components = {
+                core: document.getElementById('core').checked,
+                speech: document.getElementById('speech').checked,
+                translation: document.getElementById('translation').checked,
+                tts: document.getElementById('tts').checked,
+                models: document.getElementById('models').checked
+            };
+
+            localStorage.setItem('selected_components', JSON.stringify(components));
+
+            // Loading state
+            const lang = getCurrentLanguage();
+            this.innerHTML = '<i class="fas fa-spinner"></i> ' + (lang === 'zh-CN' ? '启动中...' : 'Starting...');
+            this.classList.add('loading');
+            this.disabled = true;
+
+            // Exit animation then navigate
+            const container = document.getElementById('startContainer');
+            container.classList.add('fade-out');
+
+            setTimeout(() => {
+                window.location.href = '/loading';
+            }, 500);
+        });
+
+        // ── Language Support ──────────────────
+        let translations = {};
+
+        function getCurrentLanguage() {
+            return localStorage.getItem('language') || 'zh-CN';
+        }
+
+        async function loadTranslations() {
+            try {
+                const response = await fetch('/api/languages');
+                translations = await response.json();
+                updatePageLanguage();
+            } catch (error) {
+                console.error('Failed to load translations:', error);
+            }
+        }
+
+        function updatePageLanguage() {
+            const lang = getCurrentLanguage();
+            const langData = translations[lang]?.app || translations['zh-CN']?.app;
+
+            if (!langData) return;
+
+            document.title = langData.title || 'VoxEngine - Start';
+
+            const startBtn = document.getElementById('startButton');
+            const advBtn = document.getElementById('advancedButton');
+
+            if (lang === 'zh-CN') {
+                startBtn.innerHTML = '<i class="fas fa-play-circle"></i> 加载系统组件';
+                advBtn.innerHTML = '<i class="fas fa-sliders-h"></i> 高级启动选项';
+            } else {
+                startBtn.innerHTML = '<i class="fas fa-play-circle"></i> Load System Components';
+                advBtn.innerHTML = '<i class="fas fa-sliders-h"></i> Advanced Start Options';
+            }
+
+            // Update advanced options title
+            const advTitle = document.querySelector('.advanced-options h3');
+            if (advTitle) {
+                advTitle.innerHTML = '<i class="fas fa-microchip"></i> ' +
+                    (lang === 'zh-CN' ? '高级启动选项' : 'Advanced Start Options');
+            }
+
+            // Update component labels
+            const componentLabels = document.querySelectorAll('.component-option label');
+            const componentTexts = lang === 'zh-CN'
+                ? ['核心引擎', '语音识别', '翻译引擎', '文本转语音', '模型管理']
+                : ['Core Engine', 'Speech Recognition', 'Translation Engine', 'Text-to-Speech', 'Model Management'];
+
+            componentLabels.forEach((label, index) => {
+                if (componentTexts[index]) {
+                    const icon = label.querySelector('i').outerHTML;
+                    label.innerHTML = icon + ' ' + componentTexts[index];
+                }
+            });
+
+            // Update tags
+            const tags = document.querySelectorAll('.component-option .tag');
+            const tagLabels = lang === 'zh-CN' ? ['必需', '推荐'] : ['Required', 'Recommended'];
+            tags.forEach(tag => {
+                const text = tag.textContent.trim();
+                if (text === '必需' || text === 'Required') tag.textContent = tagLabels[0];
+                else if (text === '推荐' || text === 'Recommended') tag.textContent = tagLabels[1];
+            });
+        }
+
+        loadTranslations();
+    </script>
+</body>
+</html>

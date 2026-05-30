@@ -1,0 +1,249 @@
+{
+  "zh-CN": {
+    "app": {
+      "title": "语音识别与翻译系统",
+      "subtitle": "实时语音识别 • 智能翻译 • 流式输出",
+      "nav": {
+        "recognition": "识别",
+        "models": "模型管理",
+        "frp": "FRP管理"
+      },
+      "input": {
+        "microphone": "麦克风",
+        "speechModel": "语音模型"
+      },
+      "translation": {
+        "provider": "提供商",
+        "model": "翻译模型",
+        "stylePreset": "风格预设",
+        "customStyle": "自定义风格",
+        "optimize": "优化",
+        "hint": "💡 输入风格或场合，点击\"优化\"改进"
+      },
+      "tts": {
+        "voice": "声音（说话人）",
+        "language": "语言",
+        "rate": "语速",
+        "autoPlay": "自动播放",
+        "streaming": "流式 TTS (逐句播放)",
+        "voiceClone": "音色克隆",
+        "audioOutput": "音频输出"
+      },
+      "buttons": {
+        "start": "开始识别",
+        "stop": "停止",
+        "play": "播放",
+        "copy": "复制",
+        "edit": "编辑",
+        "savePreset": "保存为预设",
+        "download": "下载",
+        "delete": "删除",
+        "upload": "上传",
+        "refresh": "刷新"
+      },
+      "results": {
+        "recognition": "语音识别结果",
+        "translation": "翻译结果",
+        "prompt": "优化后的提示词",
+        "time": "时间",
+        "chars": "字符数",
+        "segments": "段落数"
+      },
+      "status": {
+        "ready": "系统就绪，请选择麦克风和模型开始",
+        "listening": "正在监听...",
+        "translating": "正在翻译...",
+        "stopped": "已停止",
+        "loading": "加载中...",
+        "error": "出错了",
+        "success": "成功"
+      },
+      "toasts": {
+        "recognitionStart": "开始识别",
+        "recognitionComplete": "识别完成",
+        "translationStart": "翻译开始",
+        "translationComplete": "翻译完成",
+        "optimized": "已优化",
+        "saved": "已保存",
+        "error": "错误",
+        "warning": "警告",
+        "info": "信息",
+        "downloadStart": "开始下载",
+        "downloadComplete": "下载完成",
+        "uploadStart": "开始上传",
+        "uploadComplete": "上传完成",
+        "deleteSuccess": "删除成功"
+      },
+      "models": {
+        "title": "模型管理",
+        "description": "管理语音识别和 TTS 模型",
+        "voskModels": "Vosk模型",
+        "availableModels": "可用模型",
+        "vllmModels": "vLLM模型",
+        "gsvTtsModels": "GSV-TTS-Lite",
+        "loadedModels": "已加载模型",
+        "vllmTranslationModels": "vLLM翻译模型",
+        "largeLanguageModels": "大语言模型",
+        "ready": "就绪",
+        "unloadAllModels": "卸载所有模型",
+        "memoryInfo": "内存信息",
+        "gpuModels": "GPU模型：",
+        "gpuModelsDesc": "加载在GPU中的模型（更快，使用显存）",
+        "cpuModels": "CPU模型：",
+        "cpuModelsDesc": "加载在CPU中的模型（较慢，使用内存）",
+        "tip": "提示：",
+        "tipDesc": "卸载未使用的模型可以为其他任务释放内存",
+        "vosk": {
+          "title": "Vosk 语音模型",
+          "description": "用于语音识别的Vosk模型",
+          "download": "下载Vosk模型",
+          "install": "安装模型",
+          "uninstall": "卸载模型"
+        },
+        "gsvTts": {
+          "title": "GSV-TTS-Lite 模型",
+          "description": "用于文本转语音的GSV-TTS-Lite模型",
+          "baseModels": "基础模型",
+          "gptModels": "GPT模型",
+          "sovitsModels": "SoVITS模型",
+          "download": "下载模型",
+          "upload": "上传模型",
+          "status": "状态",
+          "size": "大小",
+          "progress": "下载进度"
+        }
+      },
+      "errors": {
+        "noMicrophone": "未选择麦克风",
+        "noModel": "未选择模型",
+        "connectionError": "连接错误",
+        "downloadError": "下载错误",
+        "uploadError": "上传错误",
+        "modelNotFound": "模型未找到"
+      }
+    }
+  },
+  "en-US": {
+    "app": {
+      "title": "Speech Recognition and Translation System",
+      "subtitle": "Real-time Speech Recognition • Intelligent Translation • Streaming",
+      "nav": {
+        "recognition": "Recognition",
+        "models": "Model Manager"
+      },
+      "input": {
+        "microphone": "Microphone",
+        "speechModel": "Speech Model"
+      },
+      "translation": {
+        "provider": "Provider",
+        "model": "Translation Model",
+        "stylePreset": "Style Preset",
+        "customStyle": "Custom Style",
+        "optimize": "Optimize",
+        "hint": "💡 Enter style or occasion, click \"Optimize\" to improve"
+      },
+      "tts": {
+        "voice": "Voice (Speaker)",
+        "language": "Language",
+        "rate": "Speech Rate",
+        "autoPlay": "Auto-play",
+        "streaming": "Streaming TTS (sentence-by-sentence)",
+        "voiceClone": "Voice Clone",
+        "audioOutput": "Audio Output"
+      },
+      "buttons": {
+        "start": "Start Recognition",
+        "stop": "Stop",
+        "play": "Play",
+        "copy": "Copy",
+        "edit": "Edit",
+        "savePreset": "Save as Preset",
+        "download": "Download",
+        "delete": "Delete",
+        "upload": "Upload",
+        "refresh": "Refresh"
+      },
+      "results": {
+        "recognition": "Speech Recognition Results",
+        "translation": "Translation Results",
+        "prompt": "Optimized Prompt",
+        "time": "Time",
+        "chars": "Characters",
+        "segments": "Segments"
+      },
+      "status": {
+        "ready": "System ready, please select microphone and model to start",
+        "listening": "Listening...",
+        "translating": "Translating...",
+        "stopped": "Stopped",
+        "loading": "Loading...",
+        "error": "Error",
+        "success": "Success"
+      },
+      "toasts": {
+        "recognitionStart": "Starting Recognition",
+        "recognitionComplete": "Recognition Complete",
+        "translationStart": "Translation Started",
+        "translationComplete": "Translation Complete",
+        "optimized": "Optimized",
+        "saved": "Saved",
+        "error": "Error",
+        "warning": "Warning",
+        "info": "Information",
+        "downloadStart": "Download started",
+        "downloadComplete": "Download completed",
+        "uploadStart": "Upload started",
+        "uploadComplete": "Upload completed",
+        "deleteSuccess": "Delete successful"
+      },
+      "models": {
+        "title": "Model Manager",
+        "description": "Manage speech recognition and TTS models",
+        "voskModels": "Vosk Models",
+        "availableModels": "Available Models",
+        "vllmModels": "vLLM Models",
+        "gsvTtsModels": "GSV-TTS-Lite",
+        "loadedModels": "Loaded Models",
+        "vllmTranslationModels": "vLLM Translation Models",
+        "largeLanguageModels": "Large Language Models",
+        "ready": "Ready",
+        "unloadAllModels": "Unload All Models",
+        "memoryInfo": "Memory Information",
+        "gpuModels": "GPU Models:",
+        "gpuModelsDesc": "Models loaded in GPU (faster, uses VRAM)",
+        "cpuModels": "CPU Models:",
+        "cpuModelsDesc": "Models loaded in CPU (slower, uses RAM)",
+        "tip": "Tip:",
+        "tipDesc": "Unloading unused models frees up memory for other tasks.",
+        "vosk": {
+          "title": "Vosk Speech Models",
+          "description": "Vosk models for speech recognition",
+          "download": "Download Vosk models",
+          "install": "Install model",
+          "uninstall": "Uninstall model"
+        },
+        "gsvTts": {
+          "title": "GSV-TTS-Lite Models",
+          "description": "GSV-TTS-Lite models for text-to-speech",
+          "baseModels": "Base Models",
+          "gptModels": "GPT Models",
+          "sovitsModels": "SoVITS Models",
+          "download": "Download Model",
+          "upload": "Upload Model",
+          "status": "Status",
+          "size": "Size",
+          "progress": "Download Progress"
+        }
+      },
+      "errors": {
+        "noMicrophone": "No microphone selected",
+        "noModel": "No model selected",
+        "connectionError": "Connection error",
+        "downloadError": "Download error",
+        "uploadError": "Upload error",
+        "modelNotFound": "Model not found"
+      }
+    }
+  }
+}
