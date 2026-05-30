@@ -1,293 +1,380 @@
-# 实时语音识别与翻译系统
+[中文](README-CN.md) | English
+
+# Vox Engine Framework
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#)
+[![GPU](https://img.shields.io/badge/GPU-CUDA-green.svg)](#)
 
-## 📖 项目简介
+A real-time speech recognition and translation system with streaming output, powered by FunASR/SenseVoice for high-performance offline ASR and multiple AI translation engine backends.
 
-这是一个功能强大的实时语音识别与翻译系统，集成了先进的语音识别技术和多种AI翻译引擎。系统支持流式传输，能够提供低延迟的实时识别和翻译体验，同时具有美观的Web界面。
+## Features
 
-## ✨ 核心功能
+- **Real-time Speech Recognition** — FunASR with SenseVoiceSmall model, GPU-accelerated streaming ASR
+- **Multi-Engine Translation** — Supports LPS (Local Processing System), vLLM, Ollama, and LM Studio
+- **Streaming Output** — Real-time streaming display of both recognition and translation results
+- **Text-to-Speech** — GSV-TTS-Lite based TTS with streaming playback
+- **Streaming TTS** — Incremental TTS that plays as translation chunks arrive, with auto-play support
+- **Microphone Management** — Multi-device selection and switching
+- **Smart Translation Batching** — Accumulates ASR text and batches translation requests based on content length
+- **Sequence-Ordered Translation** — Server-side sequence numbering prevents out-of-order translation display
+- **Persistent ASR Cache** — Cross-chunk FunASR cache maintains streaming context across audio segments
+- **Real-time Monitoring** — Recognition confidence, translation latency, audio levels, and character counts
+- **Web Interface** — Modern, responsive WebUI with dark/light theme support
 
-- 🎯 **实时语音识别** - 基于Vosk的高性能离线语音识别
-- 🔄 **智能翻译** - 支持vLLM、Ollama、LM Studio等多种翻译引擎
-- ⚡ **流式传输** - 识别和翻译结果实时流式输出
-- 🎙️ **麦克风管理** - 支持多设备选择和切换
-- 🤖 **模型管理** - 灵活的AI模型选择和配置
-- 📊 **实时监控** - 显示识别时长、翻译时长、字符数等关键指标
-- 🎨 **精美界面** - 现代化WebUI设计，支持响应式布局
-- 🔌 **自动服务启动** - 一键启动vLLM等后端服务
+## Tech Stack
 
-## 🛠️ 技术栈
+### Backend
 
-### 后端技术
-- **框架**: Flask + Flask-SocketIO
-- **语音识别**: Vosk
-- **AI翻译**: vLLM / Ollama / LM Studio
-- **TTS**: GSV-TTS-Lite
-- **异步处理**: threading + concurrent.futures
-- **缓存系统**: LRU Cache
+| Component | Technology |
+|-----------|-----------|
+| Web Framework | Flask + Flask-SocketIO |
+| ASR Engine | FunASR + SenseVoiceSmall |
+| Translation | LPS (llama.cpp / OpenAI-compatible), vLLM, Ollama, LM Studio |
+| TTS Engine | GSV-TTS-Lite with embedding-based voice cloning |
+| Async Runtime | eventlet + threading |
+| Audio Processing | PyAudio + Web Audio API |
+| Caching | LRU Cache with TTL |
 
-### 前端技术
-- **核心**: HTML5 + CSS3 + JavaScript
-- **实时通信**: Socket.IO
-- **音频处理**: Web Audio API
+### Frontend
 
-### 开发工具
-- **依赖管理**: pip + requirements.txt
-- **虚拟环境**: venv
-- **脚本管理**: Windows Batch (.bat)
+| Component | Technology |
+|-----------|-----------|
+| Core | HTML5 + CSS3 + JavaScript |
+| Real-time Communication | Socket.IO |
+| Audio Capture | Web Audio API (MediaStream) |
+| Audio Processing | AudioWorklet + ScriptProcessor |
+| Design System | Custom editorial design with warm palette |
 
-## 📋 系统要求
+## System Requirements
 
-### 最低配置
-- **操作系统**: Windows 10/11
-- **Python**: 3.11 或更高版本
-- **内存**: 8GB RAM
-- **存储空间**: 10GB 可用空间
+### Minimum
 
-### 推荐配置
-- **操作系统**: Windows 11
+- **OS**: Windows 10/11
+- **Python**: 3.11+
+- **RAM**: 8GB
+- **Storage**: 10GB free
+- **GPU**: Recommended (NVIDIA with CUDA)
+
+### Recommended
+
+- **OS**: Windows 11
 - **Python**: 3.13
-- **内存**: 16GB+ RAM
-- **GPU**: NVIDIA GPU (支持CUDA)
-- **存储空间**: 50GB+ SSD
+- **RAM**: 16GB+
+- **GPU**: NVIDIA GPU with CUDA 12+
+- **Storage**: 50GB+ SSD
 
-## 🚀 快速开始
+## Quick Start
 
-### 1. 克隆或下载项目
+### 1. Clone the Repository
 
 ```bash
-cd V0.3
+git clone https://github.com/monologue82/Vox-Engine-Framework.git
+cd Vox-Engine-Framework
 ```
 
-### 2. 安装依赖
+### 2. Install Dependencies
 
-#### 方式一：使用批处理脚本（推荐）
+#### Option A: Using Setup Script (Recommended)
+
 ```bash
 setup.bat
 ```
 
-#### 方式二：手动安装
+#### Option B: Manual Installation
+
 ```bash
-# 创建虚拟环境
+# Create virtual environment
 python -m venv venv
 
-# 激活虚拟环境
+# Activate it
 .\venv\Scripts\activate
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. 配置翻译引擎
+> **Note**: For CUDA 12+ GPU support, install PyTorch separately:
+> ```bash
+> pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu132
+> ```
 
-#### 选项A：vLLM（推荐，性能最佳）
-```bash
-# 安装vLLM
-pip install vllm
+### 3. Start the System
 
-# 系统启动时会自动启动vLLM服务
-```
-
-#### 选项B：Ollama（备选方案）
-1. 下载并安装 [Ollama](https://ollama.com/)
-2. 启动Ollama服务：
-```bash
-ollama serve
-```
-3. 下载翻译模型：
-```bash
-ollama pull llama2
-# 或
-ollama pull qwen2.5:7b
-```
-
-### 4. 启动系统
-
-#### 方式一：使用批处理文件（推荐）
 ```bash
 start.bat
 ```
 
-#### 方式二：手动启动
-```bash
-# 激活虚拟环境
-.\venv\Scripts\activate
+Or manually:
 
-# 运行应用
+```bash
+.\venv\Scripts\activate
 python app.py
 ```
 
-### 5. 访问界面
+### 4. Access the Interface
 
-打开浏览器，访问：`http://localhost:5000`
+Open your browser and visit:
 
-## 📁 项目结构
+- **Main page**: [http://localhost:5000/app](http://localhost:5000/app)
+- **Settings**: [http://localhost:5000/settings](http://localhost:5000/settings)
 
-```
-V0.3/
-├── app.py                      # 主应用入口
-├── api_engine_routes.py        # API路由
-├── requirements.txt            # Python依赖
-├── config.json                 # 主配置文件
-├── settings.json               # 用户设置
-├── .gitignore                  # Git忽略文件
-├── LICENSE                     # MIT许可证
-├── README.md                   # 项目说明文档
-│
-├── config/                     # 配置文件目录
-│   ├── engines.json           # 引擎配置
-│   ├── frp_tunnels.json       # FRP隧道配置
-│   ├── languages.json         # 语言配置
-│   ├── translation_styles.json # 翻译风格配置
-│   └── vllm_models.json       # vLLM模型配置
-│
-├── core/                       # 核心模块
-│   └── frp/                   # FRP相关
-│
-├── engines/                    # 引擎模块
-│   ├── __init__.py
-│   ├── base_engine.py         # 基础引擎类
-│   ├── engine_manager.py      # 引擎管理器
-│   ├── streamspeech_engine.py # StreamSpeech引擎
-│   └── traditional_engine.py  # 传统引擎
-│
-├── models/                     # 模型目录
-│   ├── stt/                   # 语音识别模型
-│   │   └── vosk-model-cn-0.22/
-│   └── tts/                   # 语音合成模型
-│       ├── g2p/               # 音素转换
-│       └── s2Gv2ProPlus/     # TTS模型
-│
-├── static/                     # 静态资源
-│   ├── css/                   # 样式文件
-│   │   └── style.css
-│   ├── icons/                 # 图标资源
-│   └── js/                    # JavaScript文件
-│       └── main.js
-│
-├── templates/                  # HTML模板
-│   ├── index.html             # 主页面
-│   ├── engine_selector.html   # 引擎选择
-│   ├── language_selector.html # 语言选择
-│   ├── loading.html           # 加载页面
-│   ├── settings.html          # 设置页面
-│   └── start.html             # 开始页面
-│
-├── venv/                       # Python虚拟环境（不提交）
-├── setup.bat                   # 安装脚本
-├── start.bat                   # 启动脚本
-├── stop.bat                    # 停止脚本
-└── repair.bat                  # 修复脚本
-```
+## Web Interface
 
-## 💡 使用指南
+The system provides a modern web interface with the following pages:
 
-### 基础使用流程
+| Route | Page | Description |
+|-------|------|-------------|
+| `/app` | Main Application | Real-time ASR, translation, and TTS interface |
+| `/settings` | Settings | Microphone, translation engine, TTS, and theme configuration |
+| `/start` | Launch Page | System startup and status overview |
+| `/loading` | Loading | Model loading progress display |
+| `/asr_debug` | ASR Debug | Raw ASR output inspector |
+| `/translation_debug` | Translation Debug | Translation stream inspector |
+| `/tts_debug` | TTS Debug | TTS stream inspector |
+| `/tts_only_debug` | TTS Only | Standalone TTS test page |
 
-1. **启动系统** - 运行 `start.bat` 或 `python app.py`
-2. **选择设备** - 在Web界面中选择麦克风设备
-3. **选择模型** - 选择语音识别模型和翻译模型
-4. **开始识别** - 点击"开始识别"按钮
-5. **实时翻译** - 开始说话，系统会实时显示识别和翻译结果
-6. **停止识别** - 点击"停止识别"按钮结束
+## Translation Engine Setup
 
-### 翻译引擎选择
+### LPS (Local Processing System) — Default
 
-| 引擎 | 特点 | 推荐场景 |
-|------|------|----------|
-| **vLLM** | 高性能、低延迟、支持连续批处理 | 生产环境、需要最佳性能 |
-| **Ollama** | 简单易用、支持多种模型 | 开发测试、个人使用 |
-| **LM Studio** | 图形化界面、模型管理方便 | 桌面应用场景 |
+The system uses LPS as the default translation provider, which supports two backends:
 
-## ⚙️ 配置说明
-
-### 主配置文件 (config.json)
-
+**OpenAI-compatible** (recommended): Connect to any OpenAI-compatible server (LM Studio, llama-server, Ollama, vLLM)
 ```json
 {
-  "vllm": {
-    "auto_start": true
-  },
-  "translation": {
-    "auto_start_vllm": true
-  },
-  "llama_cpp": {
-    "version": "auto",
-    "model_path": ""
+  "lps": {
+    "backend": "openai_compatible",
+    "openai_url": "http://localhost:8080/v1"
   }
 }
 ```
 
-### 环境变量
+**llama.cpp**: Use local GGUF models directly
+```json
+{
+  "lps": {
+    "backend": "llama_cpp",
+    "models_dir": "models/translate",
+    "default_model": "models/translate/your-model.gguf"
+  }
+}
+```
 
-- `PYTORCH_CUDA_ALLOC_CONF`: PyTorch内存分配配置（默认：`expandable_segments:True`）
+### vLLM
 
-## 🔧 故障排除
+```bash
+pip install vllm
+# System will auto-start vLLM service
+```
 
-### 常见问题
+### Ollama
 
-**Q: 提示 "Ollama 服务未运行"**
-- A: 请先运行 `ollama serve` 启动Ollama服务
+1. Download and install [Ollama](https://ollama.com/)
+2. Start the service: `ollama serve`
+3. Pull a model: `ollama pull qwen2.5:3b`
 
-**Q: 无法加载语音识别模型**
-- A: 检查 `models/stt/vosk-model-cn-0.22` 目录是否存在
+### LM Studio
 
-**Q: 麦克风列表为空**
-- A: 检查系统麦克风是否正常工作，并确保应用程序有麦克风权限
+1. Download [LM Studio](https://lmstudio.ai/)
+2. Load a model and start the local inference server
+3. Set the API URL in the web interface settings
 
-**Q: 翻译模型列表为空**
-- A: 确保已下载对应模型（如 `ollama pull <模型名>`）
+## TTS Configuration
 
-**Q: 中文路径问题**
-- A: 系统会自动将模型复制到临时目录处理中文路径问题
+The system supports streaming TTS with the following features:
 
-### 日志和调试
+- **Voice Selection**: Multiple preset voices (Jenny, Xiaoxiao, Xiaoyi, etc.)
+- **Streaming Playback**: TTS audio plays incrementally as translation chunks arrive
+- **Auto-play**: Automatically reads translated text aloud
+- **Speed Control**: Adjustable speech rate
 
-应用运行时会在控制台输出详细的日志信息，包括：
-- 模型加载状态
-- 服务连接状态
-- 识别和翻译进度
-- 错误和警告信息
+TTS models are loaded from the `models/tts/` directory, including embedding models (chinese-hubert-base, chinese-roberta-wwm-ext-large), G2P converters, and SoVITS models.
 
-## 📈 性能优化建议
+## Project Structure
 
-1. **使用SSD存储** - 将模型和系统放在SSD上可以大幅提升加载速度
-2. **GPU加速** - 使用支持CUDA的NVIDIA GPU运行vLLM
-3. **合理配置模型** - 根据硬件选择合适大小的模型
-4. **网络优化** - vLLM服务建议本地运行以减少网络延迟
+```
+Vox-Engine-Framework/
+├── app.py                         # Main application entry (Flask + SocketIO)
+├── funasr_asr.py                  # FunASR streaming ASR interface
+├── api_engine_routes.py           # API engine routes
+├── config.json                    # System configuration
+├── settings.json                  # User settings (theme, TTS, translation provider)
+├── requirements.txt               # Python dependencies
+├── .gitignore                     # Git ignore rules
+├── LICENSE                        # MIT License
+├── DESIGN.md                      # Design system documentation
+├── README.md                      # English documentation
+├── README-CN.md                   # Chinese documentation
+│
+├── config/                        # Configuration files
+│   ├── engines.json              # Translation engine definitions
+│   ├── languages.json            # Supported languages
+│   ├── translation_styles.json   # Translation style presets
+│   ├── vllm_models.json          # vLLM model registry
+│   ├── frp_tunnels.json          # FRP tunnel configuration
+│   └── user_presets/             # User-defined presets
+│
+├── engines/                       # Engine module (legacy)
+│   ├── __init__.py
+│   ├── base_engine.py            # Base engine class
+│   ├── engine_manager.py         # Engine manager
+│   ├── streamspeech_engine.py    # StreamSpeech engine
+│   └── traditional_engine.py     # Traditional engine
+│
+├── core/                          # Core modules
+│
+├── models/                        # Model files (not in repo, downloaded separately)
+│   ├── stt/                      # Speech recognition models
+│   │   ├── SenseVoiceSmall/      # FunASR SenseVoice model
+│   │   └── vosk-model-small-cn-0.22/
+│   ├── translate/                # Translation models
+│   │   └── tencent/              # Tencent Hy-MT2 models
+│   └── tts/                      # TTS models
+│       ├── chinese-hubert-base/  # Hubert embedding model
+│       ├── chinese-roberta-wwm-ext-large/  # RoBERTa model
+│       ├── g2p/                  # Grapheme-to-phoneme
+│       │   ├── en/               # English G2P
+│       │   └── zh/               # Chinese G2P
+│       ├── gpt/                  # GPT-based TTS
+│       ├── sovits/               # SoVITS model
+│       ├── s2Gv2ProPlus/         # SoVITS v2 Pro Plus
+│       ├── sv/                   # Speaker verification
+│       └── references/           # Reference audio samples
+│
+├── static/                        # Static assets
+│   ├── css/
+│   │   └── style.css             # Main stylesheet
+│   ├── js/
+│   │   └── main.js               # Main application JavaScript
+│   ├── audio-processor.js        # Audio processing pipeline
+│   └── icons/                    # Provider icons
+│       ├── deepseek.ico
+│       ├── gradio.png
+│       ├── huggingface.ico
+│       ├── lmstudio.ico
+│       ├── modelscope.ico
+│       ├── ollama.ico
+│       ├── vllm.ico
+│       └── vosk.ico
+│
+├── templates/                      # HTML templates
+│   ├── index.html                # Main application page
+│   ├── settings.html             # Settings page
+│   ├── start.html                # Launch page
+│   ├── loading.html              # Loading screen
+│   ├── engine_selector.html      # Engine selector component
+│   ├── language_selector.html    # Language selector component
+│   ├── asr_debug.html            # ASR debug console
+│   ├── translation_debug.html    # Translation debug console
+│   ├── tts_debug.html            # TTS debug console
+│   └── tts_only_debug.html       # Standalone TTS test
+│
+├── test/                          # Test suite
+│   ├── test_asr_baseline.py      # ASR baseline test
+│   ├── test_asr_quick.py         # Quick ASR test
+│   ├── test_encoding.py          # Encoding test
+│   ├── test_full_pipeline.py     # End-to-end pipeline test
+│   ├── test_streaming_asr.py     # Streaming ASR test
+│   ├── test_redirect.py          # Redirect test
+│   ├── test_strip.py             # Text stripping test
+│   └── tts_output.wav            # TTS sample output
+│
+├── voice_samples/                 # Recorded voice samples
+├── setup.bat                      # Setup script (venv + dependencies)
+├── start.bat                      # Launch script
+├── stop.bat                       # Stop script
+├── repair.bat                     # Repair script
+└── test_streaming_asr.py          # Streaming ASR test (root level)
+```
 
-## 🤝 贡献指南
+## Troubleshooting
 
-我们欢迎各种形式的贡献！
+### Common Issues
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+**Q: "FunASR model not loaded"**
+- A: The model `SenseVoiceSmall` will be downloaded automatically on first run, or place it in `models/stt/SenseVoiceSmall/`
 
-## 📄 许可证
+**Q: Microphone list is empty**
+- A: Check system microphone permissions and ensure no other app is using the microphone
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+**Q: Translation returns empty results**
+- A: Verify your translation engine is running and accessible. For LPS, check `http://localhost:8080/v1`
 
-## 🙏 致谢
+**Q: "Ollama service not running"**
+- A: Run `ollama serve` first to start the Ollama service
 
-- [Vosk](https://alphacephei.com/vosk/) - 开源语音识别引擎
-- [vLLM](https://github.com/vllm-project/vllm) - 高性能LLM推理引擎
-- [Ollama](https://ollama.com/) - 本地AI模型运行平台
-- [Flask](https://flask.palletsprojects.com/) - Python Web框架
-- [GSV-TTS-Lite](https://pypi.org/project/gsv-tts-lite/) - 轻量级TTS引擎
+**Q: Chinese path issues on Windows**
+- A: The system automatically copies models to a temp directory to handle Chinese path issues
 
-## 📞 联系方式
+**Q: Port 5000 already in use**
+- A: Change the port in `config.json` → `server.port`
 
-如有问题或建议，欢迎通过以下方式联系：
+### Debug Pages
 
-- 提交 Issue
-- 发送 Pull Request
+The system includes dedicated debug pages for each pipeline stage:
+- `/asr_debug` — Monitor raw ASR output
+- `/translation_debug` — Inspect translation stream chunks
+- `/tts_debug` — Debug TTS audio chunks
+- `/tts_only_debug` — Standalone TTS testing
+
+## Configuration
+
+### config.json
+
+The main configuration file controls system-wide settings:
+
+```json
+{
+  "server": { "port": 5000 },
+  "audio": { "sample_rate": 16000, "chunk_size": 4096 },
+  "translation": { "default_provider": "lps" },
+  "lps": {
+    "backend": "openai_compatible",
+    "openai_url": "http://localhost:8080/v1"
+  },
+  "tts": { "enabled": true, "default_model": "s2Gv2ProPlus" }
+}
+```
+
+### settings.json
+
+User-persisted settings (theme, language, TTS preferences, translation provider):
+
+```json
+{
+  "theme": "dark",
+  "language": "en-US",
+  "translation": { "provider": "lmstudio" },
+  "tts": { "voice": "en-US-JennyNeural", "streaming": true }
+}
+```
+
+## Performance Optimization
+
+1. **Use SSD storage** — Model loading is significantly faster from SSD
+2. **GPU acceleration** — NVIDIA GPU with CUDA 12+ for FunASR and translation
+3. **Adjust chunk size** — Smaller chunk size (2048) reduces latency, larger (8192) improves ASR accuracy
+4. **Local translation** — Run LPS locally to eliminate network latency
+5. **Thread pool tuning** — Adjust `performance.max_threads` in config.json
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [FunASR](https://github.com/modelscope/FunASR) — Fundamental End-to-End Speech Recognition Toolkit
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) — Multilingual voice understanding model
+- [vLLM](https://github.com/vllm-project/vllm) — High performance LLM inference engine
+- [Ollama](https://ollama.com/) — Local AI model running platform
+- [LM Studio](https://lmstudio.ai/) — Desktop LLM inference
+- [Flask](https://flask.palletsprojects.com/) — Python web framework
+- [Socket.IO](https://socket.io/) — Real-time bidirectional communication
+- [GSV-TTS-Lite](https://pypi.org/project/gsv-tts-lite/) — Lightweight TTS engine
+- [Vosk](https://alphacephei.com/vosk/) — Legacy ASR engine support
 
 ---
 
-**注意**: 本项目仅供学习和研究使用。使用AI模型时请遵守相关模型的许可协议。
+**Note**: This project is for learning and research purposes. Please comply with the license agreements of the respective AI models when using them.
