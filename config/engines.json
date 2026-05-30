@@ -1,0 +1,67 @@
+{
+    "default_engine": "traditional",
+    "engines": {
+        "traditional": {
+            "enabled": true,
+            "config": {
+                "asr_model": "models/stt/vosk-model-cn-0.22",
+                "translation_provider": "llama.cpp",
+                "tts_model": "models/tts/g2p",
+                "llama_cpp_url": "http://localhost:8080",
+                "vllm_url": "http://localhost:8000"
+            },
+            "description": "传统级联引擎：Vosk ASR + vLLM/llama.cpp 翻译 + GSV-TTS 语音合成",
+            "features": [
+                "中文优化",
+                "多模型选择",
+                "声音克隆",
+                "FRP 支持"
+            ],
+            "performance": {
+                "latency": "中等 (800-1500ms)",
+                "quality": "依赖模型",
+                "resource_usage": "中等"
+            }
+        },
+        "streamspeech": {
+            "enabled": true,
+            "config": {
+                "model_path": "models/streamspeech/streamspeech.zh-en.pt",
+                "vocoder_path": "models/vocoder/g_00500000",
+                "vocoder_config": "models/vocoder/config.json",
+                "data_bin": "models/streamspeech/data-bin",
+                "config_yaml": "config_gcmvn.yaml",
+                "multitask_config": "config_mtl_asr_st_ctcst.yaml",
+                "chunk_size": 320,
+                "lagging_k1": 0,
+                "lagging_k2": 0,
+                "stride_n": 1
+            },
+            "description": "StreamSpeech 端到端引擎：单一模型实现 ASR+S2TT+S2ST",
+            "features": [
+                "低延迟",
+                "增量输出",
+                "联合优化",
+                "端到端处理"
+            ],
+            "performance": {
+                "latency": "低 (320-640ms)",
+                "quality": "SOTA (学术论文级别)",
+                "resource_usage": "较低"
+            }
+        }
+    },
+    "auto_switch": {
+        "enabled": false,
+        "rules": [
+            {
+                "condition": "language == 'zh'",
+                "switch_to": "traditional"
+            },
+            {
+                "condition": "latency_requirement < 500",
+                "switch_to": "streamspeech"
+            }
+        ]
+    }
+}

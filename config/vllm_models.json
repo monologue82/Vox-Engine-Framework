@@ -1,0 +1,1248 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-01-15",
+  "description": "vLLM Translation Models Configuration",
+  "vendors": {
+    "alibaba": {
+      "name": "Alibaba (通义千问 Qwen)",
+      "icon": "🧠",
+      "description": "阿里巴巴通义千问系列，中文能力最强",
+      "website": "https://qwenlm.github.io/",
+      "models": [
+        {
+          "id": "Qwen/Qwen2.5-0.5B-Instruct",
+          "name": "Qwen2.5-0.5B-Instruct",
+          "description": "最小版本，适合测试和低显存环境",
+          "size": "1GB",
+          "params": "0.5B",
+          "vram": "2GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["tiny", "low-vram", "fast"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-1.5B-Instruct",
+          "name": "Qwen2.5-1.5B-Instruct",
+          "description": "小型版本，速度快",
+          "size": "3GB",
+          "params": "1.5B",
+          "vram": "4GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["small", "fast"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-3B-Instruct",
+          "name": "Qwen2.5-3B-Instruct",
+          "description": "中等版本，平衡性能与速度",
+          "size": "6GB",
+          "params": "3B",
+          "vram": "8GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["medium", "balanced"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-7B-Instruct",
+          "name": "Qwen2.5-7B-Instruct",
+          "description": "推荐版本，中文翻译效果最佳",
+          "size": "16GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["recommended", "chinese", "balanced"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-14B-Instruct",
+          "name": "Qwen2.5-14B-Instruct",
+          "description": "大型版本，翻译质量更高",
+          "size": "28GB",
+          "params": "14B",
+          "vram": "32GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["large", "high-quality"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-32B-Instruct",
+          "name": "Qwen2.5-32B-Instruct",
+          "description": "超大版本，顶级质量",
+          "size": "65GB",
+          "params": "32B",
+          "vram": "64GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["xlarge", "best-quality"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-72B-Instruct",
+          "name": "Qwen2.5-72B-Instruct",
+          "description": "最大版本，企业级质量",
+          "size": "145GB",
+          "params": "72B",
+          "vram": "144GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["xxlarge", "enterprise"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+          "name": "Qwen2.5-7B-Instruct-AWQ",
+          "description": "AWQ 4-bit量化，显存减半，质量损失小",
+          "size": "5GB",
+          "params": "7B",
+          "vram": "8GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram", "recommended"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-14B-Instruct-AWQ",
+          "name": "Qwen2.5-14B-Instruct-AWQ",
+          "description": "AWQ 4-bit量化，高质量低显存",
+          "size": "9GB",
+          "params": "14B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-32B-Instruct-AWQ",
+          "name": "Qwen2.5-32B-Instruct-AWQ",
+          "description": "AWQ 4-bit量化，超大模型低显存版",
+          "size": "18GB",
+          "params": "32B",
+          "vram": "32GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4",
+          "name": "Qwen2.5-7B-Instruct-GPTQ-Int4",
+          "description": "GPTQ Int4量化，显存占用最低",
+          "size": "4GB",
+          "params": "7B",
+          "vram": "6GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gptq", "int4", "low-vram"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int8",
+          "name": "Qwen2.5-7B-Instruct-GPTQ-Int8",
+          "description": "GPTQ Int8量化，质量更好",
+          "size": "7GB",
+          "params": "7B",
+          "vram": "10GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gptq", "int8"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen3-0.6B",
+          "name": "Qwen3-0.6B",
+          "description": "Qwen3最新版本，小型高效",
+          "size": "1.5GB",
+          "params": "0.6B",
+          "vram": "3GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["latest", "tiny", "fast"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen3-1.7B",
+          "name": "Qwen3-1.7B",
+          "description": "Qwen3最新版本，中等规模",
+          "size": "4GB",
+          "params": "1.7B",
+          "vram": "6GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["latest", "small"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen3-4B",
+          "name": "Qwen3-4B",
+          "description": "Qwen3最新版本，推荐使用",
+          "size": "8GB",
+          "params": "4B",
+          "vram": "12GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["latest", "recommended"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen3-8B",
+          "name": "Qwen3-8B",
+          "description": "Qwen3最新版本，高质量",
+          "size": "16GB",
+          "params": "8B",
+          "vram": "18GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["latest", "high-quality"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+          "name": "Qwen2.5-Coder-7B-Instruct",
+          "description": "Qwen代码专用版本，编程能力强",
+          "size": "16GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文/代码",
+          "context_length": 131072,
+          "tags": ["code", "programming"],
+          "license": "Apache-2.0"
+        }
+      ]
+    },
+    "meta": {
+      "name": "Meta (Llama)",
+      "icon": "🦙",
+      "description": "Meta Llama系列，开源模型标杆",
+      "website": "https://llama.meta.com/",
+      "models": [
+        {
+          "id": "meta-llama/Llama-3.2-1B-Instruct",
+          "name": "Llama-3.2-1B-Instruct",
+          "description": "Llama 3.2最小版本，适合边缘设备",
+          "size": "2GB",
+          "params": "1B",
+          "vram": "4GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["tiny", "edge", "fast"],
+          "license": "Llama-3.2"
+        },
+        {
+          "id": "meta-llama/Llama-3.2-3B-Instruct",
+          "name": "Llama-3.2-3B-Instruct",
+          "description": "Llama 3.2小型版本，平衡性能",
+          "size": "6GB",
+          "params": "3B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["small", "balanced"],
+          "license": "Llama-3.2"
+        },
+        {
+          "id": "meta-llama/Llama-3.1-8B-Instruct",
+          "name": "Llama-3.1-8B-Instruct",
+          "description": "Llama 3.1标准版本，通用性强",
+          "size": "16GB",
+          "params": "8B",
+          "vram": "18GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["recommended", "general"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "meta-llama/Llama-3.1-70B-Instruct",
+          "name": "Llama-3.1-70B-Instruct",
+          "description": "Llama 3.1大型版本，高质量",
+          "size": "140GB",
+          "params": "70B",
+          "vram": "140GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["large", "high-quality"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "meta-llama/Llama-3.1-405B-Instruct",
+          "name": "Llama-3.1-405B-Instruct",
+          "description": "Llama 3.1超大版本，顶级质量",
+          "size": "810GB",
+          "params": "405B",
+          "vram": "800GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["xlarge", "enterprise"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+          "name": "Llama-3.1-8B-Instruct-AWQ-INT4",
+          "description": "AWQ Int4量化版本",
+          "size": "5GB",
+          "params": "8B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "hugging-quants/Meta-Llama-3.1-70B-Instruct-AWQ-INT4",
+          "name": "Llama-3.1-70B-Instruct-AWQ-INT4",
+          "description": "AWQ Int4量化，大模型低显存版",
+          "size": "40GB",
+          "params": "70B",
+          "vram": "48GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+          "name": "Llama-3.2-11B-Vision-Instruct",
+          "description": "Llama 3.2视觉版本，支持图像理解",
+          "size": "22GB",
+          "params": "11B",
+          "vram": "24GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["vision", "multimodal"],
+          "license": "Llama-3.2"
+        },
+        {
+          "id": "meta-llama/Llama-3.2-90B-Vision-Instruct",
+          "name": "Llama-3.2-90B-Vision-Instruct",
+          "description": "Llama 3.2视觉大版本，顶级视觉理解",
+          "size": "180GB",
+          "params": "90B",
+          "vram": "180GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["vision", "multimodal", "enterprise"],
+          "license": "Llama-3.2"
+        }
+      ]
+    },
+    "microsoft": {
+      "name": "Microsoft (Phi)",
+      "icon": "🔬",
+      "description": "微软Phi系列，小而精悍",
+      "website": "https://azure.microsoft.com/en-us/products/phi-3",
+      "models": [
+        {
+          "id": "microsoft/phi-4",
+          "name": "Phi-4",
+          "description": "最新Phi-4，性能强劲",
+          "size": "10GB",
+          "params": "14B",
+          "vram": "16GB",
+          "language": "英文",
+          "context_length": 16384,
+          "tags": ["latest", "recommended", "fast"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3.5-mini-instruct",
+          "name": "Phi-3.5-mini-instruct",
+          "description": "Phi-3.5迷你版本，速度极快",
+          "size": "4GB",
+          "params": "3.8B",
+          "vram": "6GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["small", "fast"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3.5-MoE-instruct",
+          "name": "Phi-3.5-MoE-instruct",
+          "description": "Phi-3.5 MoE版本，混合专家架构",
+          "size": "20GB",
+          "params": "42B (16x2.7B)",
+          "vram": "24GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["moe", "high-quality"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3-mini-4k-instruct",
+          "name": "Phi-3-mini-4k-instruct",
+          "description": "Phi-3迷你版本，4K上下文",
+          "size": "4GB",
+          "params": "3.8B",
+          "vram": "6GB",
+          "language": "英文",
+          "context_length": 4096,
+          "tags": ["small", "fast"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3-mini-128k-instruct",
+          "name": "Phi-3-mini-128k-instruct",
+          "description": "Phi-3迷你版本，128K长上下文",
+          "size": "4GB",
+          "params": "3.8B",
+          "vram": "6GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["small", "long-context"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3-medium-4k-instruct",
+          "name": "Phi-3-medium-4k-instruct",
+          "description": "Phi-3中等版本，质量更好",
+          "size": "14GB",
+          "params": "14B",
+          "vram": "18GB",
+          "language": "英文",
+          "context_length": 4096,
+          "tags": ["medium", "balanced"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3-medium-128k-instruct",
+          "name": "Phi-3-medium-128k-instruct",
+          "description": "Phi-3中等版本，128K长上下文",
+          "size": "14GB",
+          "params": "14B",
+          "vram": "18GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["medium", "long-context"],
+          "license": "MIT"
+        },
+        {
+          "id": "microsoft/Phi-3-vision-128k-instruct",
+          "name": "Phi-3-vision-128k-instruct",
+          "description": "Phi-3视觉版本，支持图像理解",
+          "size": "5GB",
+          "params": "4.2B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["vision", "multimodal", "small"],
+          "license": "MIT"
+        }
+      ]
+    },
+    "google": {
+      "name": "Google (Gemma)",
+      "icon": "💎",
+      "description": "Google Gemma系列，轻量高效",
+      "website": "https://ai.google.dev/gemma",
+      "models": [
+        {
+          "id": "google/gemma-3-1b-it",
+          "name": "Gemma-3-1B-IT",
+          "description": "Gemma 3最新版本，最小规模",
+          "size": "2GB",
+          "params": "1B",
+          "vram": "4GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["latest", "tiny", "fast"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-3-4b-it",
+          "name": "Gemma-3-4B-IT",
+          "description": "Gemma 3最新版本，推荐使用",
+          "size": "8GB",
+          "params": "4B",
+          "vram": "10GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["latest", "recommended"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-3-12b-it",
+          "name": "Gemma-3-12B-IT",
+          "description": "Gemma 3最新版本，高质量",
+          "size": "24GB",
+          "params": "12B",
+          "vram": "28GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["latest", "high-quality"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-3-27b-it",
+          "name": "Gemma-3-27B-IT",
+          "description": "Gemma 3最新版本，顶级质量",
+          "size": "54GB",
+          "params": "27B",
+          "vram": "56GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["latest", "large"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-2-2b-it",
+          "name": "Gemma-2-2B-IT",
+          "description": "Gemma 2小型版本，速度快",
+          "size": "4GB",
+          "params": "2B",
+          "vram": "6GB",
+          "language": "英文",
+          "context_length": 8192,
+          "tags": ["small", "fast"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-2-9b-it",
+          "name": "Gemma-2-9B-IT",
+          "description": "Gemma 2标准版本，平衡性能",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "英文",
+          "context_length": 8192,
+          "tags": ["medium", "balanced"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-2-27b-it",
+          "name": "Gemma-2-27B-IT",
+          "description": "Gemma 2大型版本，高质量",
+          "size": "54GB",
+          "params": "27B",
+          "vram": "56GB",
+          "language": "英文",
+          "context_length": 8192,
+          "tags": ["large", "high-quality"],
+          "license": "Gemma"
+        },
+        {
+          "id": "bartowski/gemma-2-9b-it-GGUF",
+          "name": "Gemma-2-9B-IT-GGUF",
+          "description": "GGUF格式，支持CPU推理",
+          "size": "6-10GB",
+          "params": "9B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 8192,
+          "tags": ["quantized", "gguf", "cpu"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-2-2b-jpn-it",
+          "name": "Gemma-2-2B-JPN-IT",
+          "description": "Gemma 2日语版本",
+          "size": "4GB",
+          "params": "2B",
+          "vram": "6GB",
+          "language": "日文",
+          "context_length": 8192,
+          "tags": ["japanese", "small"],
+          "license": "Gemma"
+        },
+        {
+          "id": "google/gemma-2-2b-chinese-it",
+          "name": "Gemma-2-2B-Chinese-IT",
+          "description": "Gemma 2中文版本",
+          "size": "4GB",
+          "params": "2B",
+          "vram": "6GB",
+          "language": "中文",
+          "context_length": 8192,
+          "tags": ["chinese", "small"],
+          "license": "Gemma"
+        }
+      ]
+    },
+    "mistral": {
+      "name": "Mistral AI",
+      "icon": "🌀",
+      "description": "Mistral系列，欧洲开源先锋",
+      "website": "https://mistral.ai/",
+      "models": [
+        {
+          "id": "mistralai/Mistral-Small-24B-Instruct-2501",
+          "name": "Mistral-Small-24B-Instruct",
+          "description": "Mistral小型版本，高效平衡",
+          "size": "48GB",
+          "params": "24B",
+          "vram": "50GB",
+          "language": "英文/法文",
+          "context_length": 32768,
+          "tags": ["small", "balanced"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "mistralai/Mistral-7B-Instruct-v0.3",
+          "name": "Mistral-7B-Instruct-v0.3",
+          "description": "Mistral 7B最新版本，经典模型",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["recommended", "classic"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "mistralai/Mistral-7B-Instruct-v0.2",
+          "name": "Mistral-7B-Instruct-v0.2",
+          "description": "Mistral 7B v0.2版本",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["classic"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+          "name": "Mixtral-8x7B-Instruct-v0.1",
+          "description": "Mixtral MoE，8个专家模型",
+          "size": "48GB",
+          "params": "46.7B (8x7B)",
+          "vram": "50GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["moe", "high-quality"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "mistralai/Mixtral-8x22B-Instruct-v0.1",
+          "name": "Mixtral-8x22B-Instruct-v0.1",
+          "description": "Mixtral超大MoE，顶级质量",
+          "size": "140GB",
+          "params": "141B (8x22B)",
+          "vram": "144GB",
+          "language": "英文",
+          "context_length": 65536,
+          "tags": ["moe", "enterprise"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "mistralai/Mistral-Large-Instruct-2407",
+          "name": "Mistral-Large-Instruct-2407",
+          "description": "Mistral超大版本，企业级",
+          "size": "250GB",
+          "params": "123B",
+          "vram": "256GB",
+          "language": "英文/法文/德文/西班牙文",
+          "context_length": 131072,
+          "tags": ["large", "enterprise", "multilingual"],
+          "license": "Mistral-Commercial"
+        },
+        {
+          "id": "TheBloke/Mistral-7B-Instruct-v0.2-AWQ",
+          "name": "Mistral-7B-Instruct-AWQ",
+          "description": "AWQ量化版本，低显存友好",
+          "size": "5GB",
+          "params": "7B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "TheBloke/Mixtral-8x7B-Instruct-v0.1-AWQ",
+          "name": "Mixtral-8x7B-Instruct-AWQ",
+          "description": "Mixtral AWQ量化版本",
+          "size": "26GB",
+          "params": "46.7B (8x7B)",
+          "vram": "32GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["quantized", "awq", "moe", "low-vram"],
+          "license": "Apache-2.0"
+        }
+      ]
+    },
+    "deepseek": {
+      "name": "DeepSeek (深度求索)",
+      "icon": "🔍",
+      "description": "DeepSeek系列，国产优秀模型",
+      "website": "https://www.deepseek.com/",
+      "models": [
+        {
+          "id": "deepseek-ai/DeepSeek-V3",
+          "name": "DeepSeek-V3",
+          "description": "DeepSeek V3，超强推理能力",
+          "size": "685GB",
+          "params": "685B",
+          "vram": "700GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["latest", "enterprise", "reasoning"],
+          "license": "DeepSeek"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1",
+          "name": "DeepSeek-R1",
+          "description": "DeepSeek R1推理模型，思维链",
+          "size": "685GB",
+          "params": "685B",
+          "vram": "700GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["reasoning", "enterprise"],
+          "license": "DeepSeek"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+          "name": "DeepSeek-R1-Distill-Qwen-1.5B",
+          "description": "R1蒸馏版，Qwen 1.5B基座",
+          "size": "3GB",
+          "params": "1.5B",
+          "vram": "4GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["distill", "reasoning", "tiny"],
+          "license": "MIT"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+          "name": "DeepSeek-R1-Distill-Qwen-7B",
+          "description": "R1蒸馏版，Qwen 7B基座，推荐",
+          "size": "16GB",
+          "params": "7B",
+          "vram": "18GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["distill", "reasoning", "recommended"],
+          "license": "MIT"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+          "name": "DeepSeek-R1-Distill-Qwen-14B",
+          "description": "R1蒸馏版，Qwen 14B基座",
+          "size": "28GB",
+          "params": "14B",
+          "vram": "32GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["distill", "reasoning", "high-quality"],
+          "license": "MIT"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+          "name": "DeepSeek-R1-Distill-Qwen-32B",
+          "description": "R1蒸馏版，Qwen 32B基座",
+          "size": "65GB",
+          "params": "32B",
+          "vram": "68GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["distill", "reasoning", "large"],
+          "license": "MIT"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+          "name": "DeepSeek-R1-Distill-Llama-8B",
+          "description": "R1蒸馏版，Llama 8B基座",
+          "size": "16GB",
+          "params": "8B",
+          "vram": "18GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["distill", "reasoning"],
+          "license": "MIT"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+          "name": "DeepSeek-R1-Distill-Llama-70B",
+          "description": "R1蒸馏版，Llama 70B基座",
+          "size": "140GB",
+          "params": "70B",
+          "vram": "144GB",
+          "language": "英文",
+          "context_length": 32768,
+          "tags": ["distill", "reasoning", "enterprise"],
+          "license": "MIT"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-V2.5",
+          "name": "DeepSeek-V2.5",
+          "description": "DeepSeek V2.5，平衡版本",
+          "size": "280GB",
+          "params": "236B",
+          "vram": "300GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["balanced"],
+          "license": "DeepSeek"
+        },
+        {
+          "id": "deepseek-ai/deepseek-coder-6.7b-instruct",
+          "name": "DeepSeek-Coder-6.7B-Instruct",
+          "description": "DeepSeek代码专用版本",
+          "size": "14GB",
+          "params": "6.7B",
+          "vram": "16GB",
+          "language": "中文/英文/代码",
+          "context_length": 16384,
+          "tags": ["code", "programming"],
+          "license": "DeepSeek"
+        },
+        {
+          "id": "deepseek-ai/deepseek-coder-33b-instruct",
+          "name": "DeepSeek-Coder-33B-Instruct",
+          "description": "DeepSeek代码大版本",
+          "size": "66GB",
+          "params": "33B",
+          "vram": "70GB",
+          "language": "中文/英文/代码",
+          "context_length": 16384,
+          "tags": ["code", "programming", "large"],
+          "license": "DeepSeek"
+        }
+      ]
+    },
+    "yi": {
+      "name": "01.AI (零一万物)",
+      "icon": "🎯",
+      "description": "零一万物Yi系列，国产新星",
+      "website": "https://www.lingyiwanwu.com/",
+      "models": [
+        {
+          "id": "01-ai/Yi-1.5-6B-Chat",
+          "name": "Yi-1.5-6B-Chat",
+          "description": "Yi 1.5小型版本，速度快",
+          "size": "12GB",
+          "params": "6B",
+          "vram": "14GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["small", "fast"],
+          "license": "Yi"
+        },
+        {
+          "id": "01-ai/Yi-1.5-9B-Chat",
+          "name": "Yi-1.5-9B-Chat",
+          "description": "Yi 1.5标准版本，推荐使用",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["recommended", "balanced"],
+          "license": "Yi"
+        },
+        {
+          "id": "01-ai/Yi-1.5-34B-Chat",
+          "name": "Yi-1.5-34B-Chat",
+          "description": "Yi 1.5大型版本，高质量",
+          "size": "68GB",
+          "params": "34B",
+          "vram": "72GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["large", "high-quality"],
+          "license": "Yi"
+        },
+        {
+          "id": "01-ai/Yi-1.5-6B-Chat-16K",
+          "name": "Yi-1.5-6B-Chat-16K",
+          "description": "Yi 1.5小型版本，16K上下文",
+          "size": "12GB",
+          "params": "6B",
+          "vram": "14GB",
+          "language": "中文/英文",
+          "context_length": 16384,
+          "tags": ["small", "long-context"],
+          "license": "Yi"
+        },
+        {
+          "id": "01-ai/Yi-1.5-9B-Chat-16K",
+          "name": "Yi-1.5-9B-Chat-16K",
+          "description": "Yi 1.5标准版本，16K上下文",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文",
+          "context_length": 16384,
+          "tags": ["recommended", "long-context"],
+          "license": "Yi"
+        },
+        {
+          "id": "01-ai/Yi-Coder-9B",
+          "name": "Yi-Coder-9B",
+          "description": "Yi代码专用版本",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文/代码",
+          "context_length": 131072,
+          "tags": ["code", "programming"],
+          "license": "Yi"
+        }
+      ]
+    },
+    "glm": {
+      "name": "智谱AI (GLM)",
+      "icon": "📚",
+      "description": "智谱GLM系列，国产大模型",
+      "website": "https://www.zhipuai.cn/",
+      "models": [
+        {
+          "id": "THUDM/glm-4-9b-chat",
+          "name": "GLM-4-9B-Chat",
+          "description": "GLM-4标准版本，推荐使用",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["recommended", "balanced"],
+          "license": "GLM-4"
+        },
+        {
+          "id": "THUDM/glm-4-9b-chat-1m",
+          "name": "GLM-4-9B-Chat-1M",
+          "description": "GLM-4，1M超长上下文",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文",
+          "context_length": 1048576,
+          "tags": ["long-context", "1m"],
+          "license": "GLM-4"
+        },
+        {
+          "id": "THUDM/glm-4-9b-chat-hf",
+          "name": "GLM-4-9B-Chat-HF",
+          "description": "GLM-4 HuggingFace版本",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["recommended"],
+          "license": "GLM-4"
+        },
+        {
+          "id": "THUDM/chatglm3-6b",
+          "name": "ChatGLM3-6B",
+          "description": "ChatGLM3经典版本",
+          "size": "12GB",
+          "params": "6B",
+          "vram": "14GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["classic"],
+          "license": "GLM-3"
+        },
+        {
+          "id": "THUDM/chatglm3-6b-32k",
+          "name": "ChatGLM3-6B-32K",
+          "description": "ChatGLM3，32K上下文",
+          "size": "12GB",
+          "params": "6B",
+          "vram": "14GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["classic", "long-context"],
+          "license": "GLM-3"
+        },
+        {
+          "id": "THUDM/codegeex4-all-9b",
+          "name": "CodeGeeX4-All-9B",
+          "description": "CodeGeeX4代码专用版本",
+          "size": "18GB",
+          "params": "9B",
+          "vram": "20GB",
+          "language": "中文/英文/代码",
+          "context_length": 131072,
+          "tags": ["code", "programming"],
+          "license": "GLM-4"
+        }
+      ]
+    },
+    "baichuan": {
+      "name": "百川智能 (Baichuan)",
+      "icon": "🌊",
+      "description": "百川大模型，国产领先",
+      "website": "https://www.baichuan-ai.com/",
+      "models": [
+        {
+          "id": "baichuan-inc/Baichuan2-7B-Chat",
+          "name": "Baichuan2-7B-Chat",
+          "description": "百川2标准版本，推荐使用",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 4096,
+          "tags": ["recommended", "balanced"],
+          "license": "Baichuan2"
+        },
+        {
+          "id": "baichuan-inc/Baichuan2-13B-Chat",
+          "name": "Baichuan2-13B-Chat",
+          "description": "百川2大型版本，高质量",
+          "size": "26GB",
+          "params": "13B",
+          "vram": "28GB",
+          "language": "中文/英文",
+          "context_length": 4096,
+          "tags": ["large", "high-quality"],
+          "license": "Baichuan2"
+        },
+        {
+          "id": "baichuan-inc/Baichuan2-Turbo",
+          "name": "Baichuan2-Turbo",
+          "description": "百川2 Turbo版本，速度更快",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 4096,
+          "tags": ["fast"],
+          "license": "Baichuan2"
+        },
+        {
+          "id": "baichuan-inc/Baichuan-7B",
+          "name": "Baichuan-7B",
+          "description": "百川基础版本",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 4096,
+          "tags": ["classic"],
+          "license": "Baichuan"
+        }
+      ]
+    },
+    "internlm": {
+      "name": "上海AI实验室 (InternLM)",
+      "icon": "🔬",
+      "description": "书生浦语系列，学术领先",
+      "website": "https://internlm.intern-ai.org.cn/",
+      "models": [
+        {
+          "id": "internlm/internlm2_5-7b-chat",
+          "name": "InternLM2.5-7B-Chat",
+          "description": "书生浦语2.5标准版本",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["recommended", "balanced"],
+          "license": "InternLM"
+        },
+        {
+          "id": "internlm/internlm2_5-20b-chat",
+          "name": "InternLM2.5-20B-Chat",
+          "description": "书生浦语2.5大型版本",
+          "size": "40GB",
+          "params": "20B",
+          "vram": "44GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["large", "high-quality"],
+          "license": "InternLM"
+        },
+        {
+          "id": "internlm/internlm2-chat-7b",
+          "name": "InternLM2-Chat-7B",
+          "description": "书生浦语2标准版本",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["classic"],
+          "license": "InternLM"
+        },
+        {
+          "id": "internlm/internlm2-chat-20b",
+          "name": "InternLM2-Chat-20B",
+          "description": "书生浦语2大型版本",
+          "size": "40GB",
+          "params": "20B",
+          "vram": "44GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["classic", "large"],
+          "license": "InternLM"
+        },
+        {
+          "id": "internlm/internlm-xcomposer2-vl-7b",
+          "name": "InternLM-XComposer2-VL-7B",
+          "description": "书生浦语视觉语言版本",
+          "size": "14GB",
+          "params": "7B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 32768,
+          "tags": ["vision", "multimodal"],
+          "license": "InternLM"
+        }
+      ]
+    },
+    "qwen_quantized": {
+      "name": "Qwen 量化版本 (TheBloke)",
+      "icon": "⚡",
+      "description": "第三方量化版本，低显存首选",
+      "website": "https://huggingface.co/TheBloke",
+      "models": [
+        {
+          "id": "TheBloke/Qwen2.5-7B-Instruct-AWQ",
+          "name": "Qwen2.5-7B-Instruct-AWQ",
+          "description": "AWQ 4-bit量化，推荐低显存用户",
+          "size": "5GB",
+          "params": "7B",
+          "vram": "8GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram", "recommended"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "TheBloke/Qwen2.5-14B-Instruct-AWQ",
+          "name": "Qwen2.5-14B-Instruct-AWQ",
+          "description": "AWQ 4-bit量化，高质量低显存",
+          "size": "9GB",
+          "params": "14B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "TheBloke/Qwen2.5-7B-Instruct-GPTQ",
+          "name": "Qwen2.5-7B-Instruct-GPTQ",
+          "description": "GPTQ量化版本",
+          "size": "5GB",
+          "params": "7B",
+          "vram": "8GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gptq", "low-vram"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+          "name": "Qwen2.5-7B-Instruct-GGUF",
+          "description": "GGUF格式，支持CPU推理",
+          "size": "4-8GB",
+          "params": "7B",
+          "vram": "8GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gguf", "cpu"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "Qwen/Qwen2.5-14B-Instruct-GGUF",
+          "name": "Qwen2.5-14B-Instruct-GGUF",
+          "description": "GGUF格式，支持CPU推理",
+          "size": "8-14GB",
+          "params": "14B",
+          "vram": "16GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gguf", "cpu"],
+          "license": "Apache-2.0"
+        },
+        {
+          "id": "MaziyarPanahi/Qwen2.5-7B-Instruct-GGUF",
+          "name": "Qwen2.5-7B-Instruct-GGUF (MP)",
+          "description": "GGUF格式，多量化选项",
+          "size": "4-8GB",
+          "params": "7B",
+          "vram": "8GB",
+          "language": "中文/英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gguf", "cpu"],
+          "license": "Apache-2.0"
+        }
+      ]
+    },
+    "llama_quantized": {
+      "name": "Llama 量化版本",
+      "icon": "⚡",
+      "description": "Llama量化版本，低显存首选",
+      "website": "https://huggingface.co/models?search=llama-awq",
+      "models": [
+        {
+          "id": "TheBloke/Llama-3.1-8B-Instruct-AWQ",
+          "name": "Llama-3.1-8B-Instruct-AWQ",
+          "description": "AWQ量化版本",
+          "size": "5GB",
+          "params": "8B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["quantized", "awq", "low-vram"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "TheBloke/Llama-3.1-8B-Instruct-GPTQ",
+          "name": "Llama-3.1-8B-Instruct-GPTQ",
+          "description": "GPTQ量化版本",
+          "size": "5GB",
+          "params": "8B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 131072,
+          "tags": ["quantized", "gptq", "low-vram"],
+          "license": "Llama-3.1"
+        },
+        {
+          "id": "QuantFactory/Meta-Llama-3-8B-Instruct-GGUF",
+          "name": "Llama-3-8B-Instruct-GGUF",
+          "description": "GGUF格式，支持CPU推理",
+          "size": "4-8GB",
+          "params": "8B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 8192,
+          "tags": ["quantized", "gguf", "cpu"],
+          "license": "Llama-3"
+        },
+        {
+          "id": "MaziyarPanahi/Llama-3-8B-Instruct-GGUF",
+          "name": "Llama-3-8B-Instruct-GGUF (MP)",
+          "description": "GGUF格式，多量化选项",
+          "size": "4-8GB",
+          "params": "8B",
+          "vram": "8GB",
+          "language": "英文",
+          "context_length": 8192,
+          "tags": ["quantized", "gguf", "cpu"],
+          "license": "Llama-3"
+        }
+      ]
+    }
+  },
+  "download_sources": {
+    "huggingface": {
+      "name": "HuggingFace Official",
+      "url": "https://huggingface.co",
+      "description": "官方源，全球访问"
+    },
+    "hf-mirror": {
+      "name": "HF-Mirror",
+      "url": "https://hf-mirror.com",
+      "description": "国内镜像，推荐中国用户"
+    },
+    "modelscope": {
+      "name": "ModelScope",
+      "url": "https://modelscope.cn",
+      "description": "阿里云模型库，国内最快"
+    }
+  }
+}

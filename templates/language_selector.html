@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Selector</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 50%, #e0f7fa 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 60px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: red;
+            font-size: 48px;
+            margin-bottom: 40px;
+        }
+        .language-buttons {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+        }
+        button {
+            background: red;
+            color: white;
+            padding: 30px 60px;
+            border-radius: 15px;
+            border: none;
+            cursor: pointer;
+            font-size: 36px;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        button:nth-child(2) {
+            background: blue;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>语言选择器</h1>
+        <form action="/api/set-language" method="post">
+            <input type="hidden" name="language" id="language-input">
+            <div class="language-buttons">
+                <button type="button" onclick="document.getElementById('language-input').value='zh-CN'; this.form.submit();">中文</button>
+                <button type="button" onclick="document.getElementById('language-input').value='en-US'; this.form.submit();">English</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
