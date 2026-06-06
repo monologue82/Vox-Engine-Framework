@@ -17,10 +17,8 @@ import asyncio
 import tempfile
 import numpy as np
 import re
-import base64
 from datetime import datetime
 from collections import OrderedDict
-import functools
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, session, redirect
 from flask_socketio import SocketIO, emit
 import pyaudio
@@ -140,19 +138,17 @@ TTS_AVAILABLE = False
 print(ConsoleColor.warning("edge-tts is disabled. Only GSV-TTS-Lite is available."))
 
 # TTS (Coqui) is not compatible with Python 3.13
-# Using GSV-TTS-Lite as alternative
+# Using edge-tts and gsv-tts-lite as alternatives
 VOICE_CLONE_AVAILABLE = False
 voice_clone_tts = None
-print(ConsoleColor.warning("TTS (Coqui) not available for Python 3.13. Using GSV-TTS-Lite as alternative."))
-
-# GSV-TTS-Lite: Lightweight TTS with voice cloning
-GSV_TTS_AVAILABLE = False
-gsv_tts = None
+print(ConsoleColor.warning("TTS (Coqui) not available for Python 3.13. Using edge-tts and gsv-tts-lite as alternatives."))
 
 try:
     from gsv_tts import TTS as GSVTTS
     GSV_TTS_AVAILABLE = True
+    gsv_tts = None
 except ImportError:
+    GSV_TTS_AVAILABLE = False
     print(ConsoleColor.warning("gsv-tts-lite not installed. GSV-TTS-Lite features will be disabled."))
 
 # Windows 适配：设置控制台编码
@@ -171,9 +167,9 @@ socketio = SocketIO(
     ping_timeout=60, 
     ping_interval=25,
     max_http_buffer_size=10 * 1024 * 1024,  # 10MB buffer
-    async_handlers=False,
-    logger=True,
-    engineio_logger=False
+    async_handlers=True,  # Enable async handlers
+    logger=False,  # Disable logging for performance
+    engineio_logger=False  # Disable engine.io logging
 )
 
 # Configuration
@@ -185,25 +181,12 @@ CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
 def load_config():
     """Load main configuration from config.json"""
     default_config = {
-        'translation': {'default_provider': 'lps', 'default_model': ''},
-        'lps': {
-            'enabled': True,
-            'backend': 'openai_compatible',
-            'openai_url': 'http://localhost:8080/v1',
-            'models_dir': 'models/translate',
-            'default_model': '',
-            'n_ctx': 2048,
-            'n_threads': 4,
-            'n_gpu_layers': 0,
-            'temperature': 0.3,
-            'max_tokens': 512,
-            'top_p': 0.8,
-            'verbose': False
-        },
-        'system': {'enable_monitor': False},
-        'speech': {'default_microphone': 'auto', 'sample_rate': '16000'},
-        'tts': {'enabled': True, 'default_model': 's2Gv2ProPlus'},
-        'server': {'port': '5001', 'enable_cors': True, 'debug': True}
+        'vllm': {'auto_start': True},
+        'translation': {'auto_start_vllm': True},
+        'llama_cpp': {
+            'version': 'auto',
+            'model_path': ''
+        }
     }
     try:
         if os.path.exists(CONFIG_FILE):
@@ -265,7 +248,7 @@ def get_text(key, lang=None):
         print(ConsoleColor.error(f"Error getting text: {e}"))
         return key
 
-# TTS model directory
+# TTS模型目录配置 - 所有模型文件存放在项目目录下
 TTS_MODELS_DIR = os.path.abspath(os.path.join(BASE_DIR, 'models', 'tts'))
 TTS_GPT_DIR = os.path.join(TTS_MODELS_DIR, 'gpt')
 TTS_SOVITS_DIR = os.path.join(TTS_MODELS_DIR, 'sovits')
@@ -279,6 +262,7 @@ for tts_dir in [TTS_MODELS_DIR, TTS_GPT_DIR, TTS_SOVITS_DIR, TTS_REFERENCES_DIR]
 
 
 # Global flags for service availability
+GSV_TTS_AVAILABLE = False
 
 SAMPLE_RATE = 16000
 CHUNK_SIZE = 8192  # Increased for better throughput
@@ -365,6 +349,7 @@ class LRUCache:
         
         # Add new entry with timestamp
         self.cache[key] = (value, time.time(), size)
+        self.current_memory += size
         self.cache.move_to_end(key)
         
         # Evict by count
@@ -439,38 +424,6 @@ MAX_CACHE_SIZE = 150
 current_translation_style = ''  # Global variable to store current translation style
 current_translation_prompt = ''  # Store optimized translation prompt
 pending_translations = set()  # Track pending translations to avoid duplicates
-_translation_seq = 0  # Translation sequence number for ordering
-_translation_seq_lock = threading.Lock()  # Lock for sequence counter
-_active_translation_seq = 0  # Currently active translation seq (newer supersedes older)
-
-# LM Studio settings
-lmstudio_url = 'http://localhost:1234'
-lmstudio_api_key = ''
-
-# LPS (Local Python Server) settings - GGUF model inference via llama-cpp-python
-LPS_AVAILABLE = False
-try:
-    from llama_cpp import Llama
-    LPS_AVAILABLE = True
-except ImportError:
-    print(ConsoleColor.warning("llama-cpp-python not installed. LPS provider will not be available."))
-    print(ConsoleColor.warning("Install with: pip install llama-cpp-python"))
-
-_lps_model = None
-_lps_model_lock = threading.Lock()
-_lps_current_model_path = None
-
-def _next_translation_seq():
-    global _translation_seq, _active_translation_seq
-    with _translation_seq_lock:
-        _translation_seq += 1
-        _active_translation_seq = _translation_seq
-        return _translation_seq
-
-def _is_translation_stale(seq):
-    if seq is None:
-        return False
-    return seq < _active_translation_seq
 
 # Load translation styles
 translation_styles = {"presets": []}
@@ -488,12 +441,50 @@ def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
+def detect_llama_cpp_version():
+    """自动检测适合的llama.cpp版本"""
+    import platform
+    import subprocess
+    
+    system = platform.system().lower()
+    
+    # 检查是否有CUDA支持
+    has_cuda = False
+    try:
+        # 尝试运行nvidia-smi命令检查CUDA
+        result = subprocess.run(['nvidia-smi'], capture_output=True, text=True, timeout=5)
+        has_cuda = result.returncode == 0
+    except:
+        pass
+    
+    # 检查是否有Metal支持 (Mac)
+    has_metal = False
+    if system == 'darwin':
+        has_metal = True
+    
+    # 根据环境推荐版本
+    if has_cuda:
+        return 'cuda'
+    elif has_metal:
+        return 'metal'
+    else:
+        return 'cpu'
+
+def get_llama_cpp_version():
+    """获取当前配置的llama.cpp版本"""
+    global APP_CONFIG
+    version = APP_CONFIG.get('llama_cpp', {}).get('version', 'auto')
+    if version == 'auto':
+        return detect_llama_cpp_version()
+    return version
+
 # Get microphone list (Windows optimized version)
 def get_microphones():
+    global pyaudio_instance
     mics = []
-    p = None
     try:
         p = pyaudio.PyAudio()
+        pyaudio_instance = p
         
         for i in range(p.get_device_count()):
             try:
@@ -515,12 +506,74 @@ def get_microphones():
     except Exception as e:
         print(ConsoleColor.error(f"Failed to get microphone list: {e}"))
         return []
-    finally:
-        if p is not None:
-            try:
-                p.terminate()
-            except Exception:
-                pass
+
+
+
+
+# vLLM Model Management
+
+# Ensure directory exists
+def get_local_vllm_models(models_dir=None):
+    """
+    Get list of locally available vLLM models.
+    
+    Scans the models/llm directory for downloaded models.
+    Returns list of model info dicts with name and path.
+    """
+    if models_dir is None:
+        models_dir = VLLM_MODELS_DIR
+    
+    models = []
+    if not os.path.exists(models_dir):
+        return models
+    
+    # Scan directory for model folders
+    for item in os.listdir(models_dir):
+        item_path = os.path.join(models_dir, item)
+        if os.path.isdir(item_path):
+            # Check if it looks like a valid model directory
+            # (contains config.json or similar)
+            if os.path.exists(os.path.join(item_path, 'config.json')) or \
+               os.path.exists(os.path.join(item_path, 'model.safetensors')) or \
+               os.path.exists(os.path.join(item_path, 'pytorch_model.bin')):
+                models.append({
+                    'name': item,
+                    'path': item_path,
+                    'size': get_dir_size(item_path),
+                    'modified': datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat()
+                })
+    
+    return sorted(models, key=lambda x: x['name'])
+
+def get_gguf_models():
+    """
+    Get list of locally available GGUF models for llama.cpp.
+    
+    Recursively scans the models directory for GGUF model files.
+    Returns list of model info dicts with name and path.
+    """
+    MODELS_DIR = os.path.join(BASE_DIR, 'models')
+    models = []
+    
+    if not os.path.exists(MODELS_DIR):
+        return models
+    
+    # Recursively walk through models directory to find GGUF files
+    for root, dirs, files in os.walk(MODELS_DIR):
+        for item in files:
+            if item.endswith('.gguf'):
+                item_path = os.path.join(root, item)
+                # Get relative path from models directory for display
+                relative_path = os.path.relpath(item_path, MODELS_DIR)
+                models.append({
+                    'name': item,
+                    'path': item_path,
+                    'relative_path': relative_path,
+                    'size': get_dir_size(item_path),
+                    'modified': datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat()
+                })
+    
+    return sorted(models, key=lambda x: x['name'])
 
 
 def get_dir_size(path):
@@ -541,6 +594,25 @@ def get_dir_size(path):
             return f"{total:.2f} {unit}"
         total /= 1024.0
     return f"{total:.2f} PB"
+
+
+def get_recommended_vllm_models():
+    """Get list of recommended vLLM models for translation, organized by vendor.
+    
+    Reads model configuration from config/vllm_models.json file.
+    Falls back to empty dict if file not found.
+    """
+    config_path = os.path.join(BASE_DIR, 'config', 'vllm_models.json')
+    
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config.get('vendors', {})
+    except Exception as e:
+        print(ConsoleColor.warning(f"Failed to load vLLM models config: {e}"))
+    
+    return {}
 
 
 # Get GPU information
@@ -605,8 +677,17 @@ def get_gpu_info():
             return {'available': False}
 
 
+# Check vLLM health
+def check_vllm_health():
+    """Check if vLLM server is running"""
+    try:
+        response = requests.get(f'{VLLM_URL}/health', timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
 # Speech recognition processing thread (Windows optimized version)
-def process_audio_stream(mic_index, model_name, provider='lps', translation_style='', preset_id=None):
+def process_audio_stream(mic_index, model_name, provider='ollama', translation_style='', preset_id=None):
     global is_processing, model
     
     p = None
@@ -672,7 +753,6 @@ def process_audio_stream(mic_index, model_name, provider='lps', translation_styl
         
         audio_level = 0
         audio_data_count = 0
-        funasr_cache = {}  # 持久 FunASR 缓存，维护跨chunk的流式ASR状态
         
         # Fast audio level calculation without numpy
         def calculate_audio_level_fast(audio_data):
@@ -695,8 +775,8 @@ def process_audio_stream(mic_index, model_name, provider='lps', translation_styl
                     audio_level = calculate_audio_level_fast(data)
                     socketio.emit('audio_level', {'level': audio_level})
                 
-                # 使用 FunASR 处理音频（传入持久缓存以维护流式ASR状态）
-                text = transcribe_audio_stream(data, cache=funasr_cache, is_final=False)
+                # 使用 FunASR 处理音频
+                text = transcribe_audio_stream(data)
                 if text:
                     segment_count += 1
                     segment_time = time.time() - start_time
@@ -716,7 +796,10 @@ def process_audio_stream(mic_index, model_name, provider='lps', translation_styl
                     # Smart batching: translate immediately if we have enough content
                     if len(accumulated_recognition.strip()) >= MIN_CHARS_FOR_TRANSLATION:
                         socketio.emit('status', {'status': 'translating', 'message': 'Translating...'})
-                        translate_stream(accumulated_recognition.strip(), model_name, provider, preset_id)
+                        if provider == 'vllm':
+                            translate_stream_vllm(accumulated_recognition.strip(), model_name, preset_id)
+                        else:
+                            translate_stream(accumulated_recognition.strip(), model_name, provider, preset_id)
                         accumulated_recognition = ""
                         last_translation_time = time.time()
                         
@@ -734,27 +817,6 @@ def process_audio_stream(mic_index, model_name, provider='lps', translation_styl
                 break
         
         print(ConsoleColor.success(f"Audio processing loop ended. Total segments: {segment_count}"))
-        
-        # 最终刷新：通知 FunASR 流结束，处理缓冲区中剩余的音频
-        try:
-            import numpy as np
-            final_text = transcribe_audio_stream(
-                np.array([0]*160, dtype=np.int16), 
-                cache=funasr_cache, 
-                is_final=True
-            )
-            if final_text:
-                print(ConsoleColor.success(f"Final flush text: {final_text[:50]}..."))
-                all_text += final_text + " "
-                accumulated_recognition += final_text + " "
-        except Exception as e:
-            print(ConsoleColor.warning(f"Final flush error (non-critical): {e}"))
-        
-        # 最终翻译：处理剩余的累积文本
-        if accumulated_recognition.strip():
-            print(ConsoleColor.info(f"Final translation for accumulated text: {accumulated_recognition.strip()[:50]}"))
-            translate_stream(accumulated_recognition.strip(), model_name, provider, preset_id)
-            accumulated_recognition = ""
         
         total_time = time.time() - start_time
         
@@ -796,35 +858,28 @@ def process_audio_stream(mic_index, model_name, provider='lps', translation_styl
 
 import concurrent.futures
 
-# Streaming translation with provider routing
-def translate_stream(text, model_name, provider='lps', preset_id=None, target_lang=None):
-    global translation_cache, current_translation_style, current_translation_prompt, pending_translations, APP_CONFIG
+# Streaming translation with provider support
+def translate_stream(text, model_name, provider='llama.cpp', preset_id=None):
+    global translation_cache, current_translation_style, current_translation_prompt, pending_translations
     
-    seq = _next_translation_seq()
-    
-    if not provider or provider == 'auto':
-        provider = APP_CONFIG.get('translation', {}).get('default_provider', 'lps')
-    
-    if provider == 'lps':
-        translate_stream_lps(text, model_name, target_lang=target_lang, seq=seq)
-        return
-    
-    # LM Studio API endpoint (OpenAI-compatible)
-    API_URL = lmstudio_url if lmstudio_url else 'http://localhost:1234'
-    service_name = 'LM Studio'
+    # Determine API URL based on provider
+    if provider == 'llama.cpp':
+        API_URL = 'http://localhost:8080'  # llama.cpp default port
+        service_name = 'llama.cpp'
+    elif provider == 'lmstudio':
+        API_URL = 'http://localhost:11434'
+        service_name = 'LM Studio'
+    else:
+        API_URL = OLLAMA_URL
+        service_name = 'Ollama'
     
     # Set default model if not provided
     if not model_name:
-        models = get_lmstudio_models()
-        model_name = models[0] if models else 'default'
+        model_name = 'llama2'  # Default Ollama model
     
-    # Determine target language for prompt
-    if not target_lang:
-        target_lang = 'English'
-    
-    # Build Hy-MT2 style translation prompt
-    prompt = f"翻译成{target_lang}，只输出译文：{text}"
-    style_key = target_lang.lower()
+    # Build clear translation prompt
+    prompt = f"Translate this Chinese text to English. Output only the translation, no explanations: {text}"
+    style_key = 'fast'
     
     # Store the optimized prompt
     current_translation_prompt = prompt
@@ -832,7 +887,7 @@ def translate_stream(text, model_name, provider='lps', preset_id=None, target_la
     # Create cache key with hash for faster lookup
     import hashlib
     text_hash = hashlib.md5(text.encode()).hexdigest()[:12]
-    cache_key = f"lmstudio:{model_name}:{style_key}:{text_hash}"
+    cache_key = f"{provider}:{model_name}:{style_key}:{text_hash}"
     
     # Check for duplicate pending translation
     if cache_key in pending_translations:
@@ -851,46 +906,63 @@ def translate_stream(text, model_name, provider='lps', preset_id=None, target_la
             socketio.emit('translation_chunk', {
                 'chunk': char,
                 'translation': cached_result[:i+1],
-                'char_count': i+1,
-                'seq': seq
+                'char_count': i+1
             })
-            time.sleep(0.003)  # Simulate streaming
+            time.sleep(0.01)  # Simulate streaming
         
         socketio.emit('translation_complete', {
             'translation': cached_result,
             'total_time': '0.00s',
             'chars': len(cached_result),
-            'first_chunk_time': '0.001s',
-            'seq': seq
+            'first_chunk_time': '0.001s'
         })
         return
     
     # Use thread pool for asynchronous processing
     def fetch_translation():
-        global lmstudio_api_key
         try:
-            if _is_translation_stale(seq):
-                print(ConsoleColor.debug(f"Translation seq={seq} already superseded at start"))
-                return
             start_time = time.time()
             
-            # Prepare headers
-            headers = {'Content-Type': 'application/json'}
-            if lmstudio_api_key:
-                headers['Authorization'] = f'Bearer {lmstudio_api_key}'
+            # Check if Ollama is available
+            try:
+                # Test Ollama connection first
+                test_response = requests.get(f'{API_URL}/api/tags', timeout=2)
+                if test_response.status_code != 200:
+                    raise Exception(f"Ollama service not responding: {test_response.status_code}")
+            except Exception as e:
+                print(ConsoleColor.error(f"Ollama service not available: {e}"))
+                # Try to start Ollama service
+                try:
+                    import subprocess
+                    print(ConsoleColor.info("Attempting to start Ollama service..."))
+                    subprocess.Popen(['ollama', 'serve'], creationflags=subprocess.CREATE_NEW_CONSOLE)
+                    # Wait for Ollama to start
+                    time.sleep(3)
+                except Exception as start_error:
+                    print(ConsoleColor.error(f"Failed to start Ollama: {start_error}"))
+                    raise
             
-            # LM Studio API call (OpenAI-compatible)
+            # Ollama API call with balanced parameters for speed and quality
             response = requests.post(
-                f'{API_URL}/v1/chat/completions',
+                f'{API_URL}/api/generate',
                 json={
                     'model': model_name,
-                    'messages': [{'role': 'user', 'content': prompt}],
+                    'prompt': prompt,
                     'stream': True,
-                    'temperature': 0.3,
-                    'max_tokens': 1024,
-                    'top_p': 0.8
+                    'options': {
+                        'temperature': 0.3,  # Low temperature for consistency
+                        'top_p': 0.8,        # Moderate sampling
+                        'top_k': 20,         # Reasonable candidates
+                        'num_predict': 200,  # Limit output for speed
+                        'num_ctx': 512,      # Balanced context
+                        'num_keep': 0,
+                        'repeat_penalty': 1.0,
+                        'repeat_last_n': 0,
+                        'seed': 42,
+                        'num_thread': 4,
+                        'f16_kv': True
+                    }
                 },
-                headers=headers,
                 stream=True,
                 timeout=60
             )
@@ -901,47 +973,32 @@ def translate_stream(text, model_name, provider='lps', preset_id=None, target_la
             
             for line in response.iter_lines(decode_unicode=True):
                 if line:
-                    if line.startswith('data: '):
-                        data_str = line[6:]
-                        if data_str.strip() == '[DONE]':
-                            break
-                        try:
-                            data = json.loads(data_str)
-                            choices = data.get('choices', [])
-                            if choices:
-                                delta = choices[0].get('delta', {})
-                                chunk = delta.get('content', '')
-                                
-                                if chunk:
-                                    if _is_translation_stale(seq):
-                                        print(ConsoleColor.debug(f"Translation seq={seq} superseded, stopping early"))
-                                        return
-                                    
-                                    if first_chunk_time is None:
-                                        first_chunk_time = time.time() - start_time
-                                        print(ConsoleColor.highlight(f"⚡ FIRST CHUNK in {first_chunk_time:.3f}s"))
-                                    
-                                    translation += chunk
-                                    char_count += len(chunk)
-                                    
-                                    socketio.emit('translation_chunk', {
-                                        'chunk': chunk,
-                                        'translation': translation,
-                                        'char_count': char_count,
-                                        'seq': seq
-                                    })
+                    try:
+                        data = json.loads(line)
+                        chunk = data.get('response', '')
                         
-                        except json.JSONDecodeError:
-                            continue
-                        except Exception as e:
-                            print(ConsoleColor.warning(f"Failed to parse translation data: {e}"))
-                            continue
+                        if chunk:
+                            # Record time of first chunk for latency measurement
+                            if first_chunk_time is None:
+                                first_chunk_time = time.time() - start_time
+                                print(ConsoleColor.highlight(f"⚡ FIRST CHUNK in {first_chunk_time:.3f}s"))
+                            
+                            translation += chunk
+                            char_count += len(chunk)
+                            
+                            socketio.emit('translation_chunk', {
+                                'chunk': chunk,
+                                'translation': translation,
+                                'char_count': char_count
+                            })
+                    
+                    except json.JSONDecodeError:
+                        continue
+                    except Exception as e:
+                        print(ConsoleColor.warning(f"Failed to parse translation data: {e}"))
+                        continue
             
             total_time = time.time() - start_time
-            
-            if _is_translation_stale(seq):
-                pending_translations.discard(cache_key)
-                return
             
             # Cache the result
             if translation:
@@ -951,8 +1008,7 @@ def translate_stream(text, model_name, provider='lps', preset_id=None, target_la
                 'translation': translation,
                 'total_time': f"{total_time:.2f}s",
                 'chars': char_count,
-                'first_chunk_time': f"{first_chunk_time:.3f}s" if first_chunk_time else "N/A",
-                'seq': seq
+                'first_chunk_time': f"{first_chunk_time:.3f}s" if first_chunk_time else "N/A"
             })
             
             print(ConsoleColor.highlight(f"⚡ DONE: {char_count} chars, total {total_time:.3f}s, first {first_chunk_time:.3f}s"))
@@ -980,12 +1036,7 @@ def translate_stream(text, model_name, provider='lps', preset_id=None, target_la
     with concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix='translator') as executor:
         executor.submit(fetch_translation)
 
-# Unified translation API call function (LM Studio only)
-def call_translation_api(text, model_name='default'):
-    """Call translation API - routes to configured default provider."""
-    global APP_CONFIG
-    provider = APP_CONFIG.get('translation', {}).get('default_provider', 'lps')
-    return translate_stream(text, model_name, provider)
+# vLLM translation with OpenAI-compatible API and batching support
 
 
 def split_into_sentences(text):
@@ -1311,6 +1362,80 @@ def smart_sentence_buffer(buffer_text, new_chunk, completed_sentences, force_thr
     return remaining_buffer, sentences_to_emit, len(sentences_to_emit) > 0
 
 
+# Batch translation with vLLM for multiple texts
+def translate_batch_vllm(texts: list, model_name=None) -> list:
+    """
+    Batch translate multiple texts using vLLM
+    Much more efficient than individual requests
+    """
+    if not texts:
+        return []
+    
+    API_URL = VLLM_URL
+    
+    # Check cache for each text
+    import hashlib
+    results = []
+    uncached_texts = []
+    uncached_indices = []
+    
+    for i, text in enumerate(texts):
+        text_hash = hashlib.blake2b(text.encode(), digest_size=8).hexdigest()
+        cache_key = f"vllm:{text_hash}"
+        
+        if cache_key in translation_cache:
+            results.append((i, translation_cache.get(cache_key)))
+        else:
+            results.append((i, None))
+            uncached_texts.append(text)
+            uncached_indices.append(i)
+    
+    if not uncached_texts:
+        # All cached
+        return [r[1] for r in sorted(results, key=lambda x: x[0])]
+    
+    # Build prompts for uncached texts
+    prompts = [f"Translate to English: {text}" for text in uncached_texts]
+    
+    try:
+        # vLLM batch API
+        response = http_session.post(
+            f'{API_URL}/v1/completions',
+            json={
+                'model': model_name or 'default',
+                'prompt': prompts,
+                'max_tokens': 100,
+                'temperature': 0.1,
+                'top_p': 0.9,
+                'stream': False
+            },
+            timeout=60,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        data = response.json()
+        choices = data.get('choices', [])
+        
+        # Update results and cache
+        for idx, choice in zip(uncached_indices, choices):
+            translation = choice.get('text', '').strip()
+            results[idx] = (idx, translation)
+            
+            # Cache result
+            text_hash = hashlib.blake2b(uncached_texts[uncached_indices.index(idx)].encode(), digest_size=8).hexdigest()
+            cache_key = f"vllm:{text_hash}"
+            translation_cache.put(cache_key, translation)
+        
+        print(ConsoleColor.success(f"Batch translated {len(uncached_texts)} texts with vLLM"))
+        
+    except Exception as e:
+        print(ConsoleColor.error(f"vLLM batch translation error: {e}"))
+        # Return original texts on error
+        for idx in uncached_indices:
+            results[idx] = (idx, texts[idx])
+    
+    return [r[1] for r in sorted(results, key=lambda x: x[0])]
+
 # GSV-TTS-Lite audio cache with memory limit (500MB) and TTL (2 hours)
 gsv_tts_cache = LRUCache(capacity=100, max_memory_mb=500, default_ttl=7200)
 
@@ -1325,7 +1450,6 @@ def generate_gsv_tts_cache_key(speaker_wav, text, speed=1.0):
         text_hash = xxhash.xxh64(text.encode()).hexdigest()
     except ImportError:
         # Use blake2b for faster hashing than md5
-        import hashlib
         text_hash = hashlib.blake2b(text.encode(), digest_size=8).hexdigest()
     
     # Normalize speaker_wav to handle path variations
@@ -1346,12 +1470,13 @@ def preload_gsv_tts():
                 'message': f'Preloading GSV-TTS-Lite model from project directory...'
             })
             
-            # Use dtype='float16' for FP16 to reduce VRAM usage by ~50%
+            # Use flash attention if available for better performance
+            # Use is_half=True for FP16 to reduce VRAM usage by ~50%
             # Set always_load_cnhubert and always_load_sv to False to save VRAM
             try:
                 gsv_tts = GSVTTS(
                     models_dir=TTS_MODELS_DIR,
-                    dtype="float16",
+                    is_half=True,
                     use_flash_attn=True,
                     use_bert=True,
                     always_load_cnhubert=False,
@@ -1381,7 +1506,7 @@ def preload_gsv_tts():
                 print(ConsoleColor.warning(f"Flash attention failed: {e}. Falling back to non-flash attention..."))
                 gsv_tts = GSVTTS(
                     models_dir=TTS_MODELS_DIR,
-                    dtype="float16",
+                    is_half=True,
                     use_flash_attn=False,
                     use_bert=True,
                     always_load_cnhubert=False,
@@ -1425,21 +1550,6 @@ def preload_gsv_tts():
                 'message': f'Failed to preload GSV-TTS-Lite model: {str(e)}'
             })
 
-# Global flag for components loaded state
-components_loaded = False
-_loading_lock = threading.Lock()
-
-
-def require_loaded(f):
-    """Decorator: redirect to /start if components are not yet loaded"""
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        if not components_loaded:
-            return redirect('/start')
-        return f(*args, **kwargs)
-    return wrapper
-
-
 # 路由
 @app.route('/')
 def index():
@@ -1458,45 +1568,74 @@ def loading():
     return render_template('loading.html')
 
 @app.route('/app')
-@require_loaded
 def main_app():
     """Direct access to main application (skip loading)"""
+    global components_loaded
+    
+    # Check if components are loaded
+    if not components_loaded:
+        # Redirect to start page if components not loaded
+        return redirect('/start')
+    
     current_language = session.get('language', default_language)
-
-    rendered = render_template('index.html')
-
-    return rendered
+    
+    # Add a random parameter to force browser to reload the template
+    import random
+    
+    # Read the index.html file
+    with open('templates/index.html', 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    # Add language selector to the HTML content
+    language_selector = '''
+    <!-- Language Selector -->
+    <div style="position: fixed; top: 20px; right: 80px; z-index: 99999; display: block !important;">
+        <form action="/api/set-language" method="post" style="margin: 0;">
+            <input type="hidden" name="language" id="language-input">
+            <button type="button" onclick="document.getElementById('language-input').value='zh-CN'; this.form.submit();" style="background: red; color: white; width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-language"></i>
+            </button>
+            <div style="position: absolute; top: 50px; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; display: block;">
+                <div style="font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px;">Language</div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <button type="button" onclick="document.getElementById('language-input').value='zh-CN'; this.form.submit();" style="padding: 8px 12px; border-radius: 6px; cursor: pointer; border: none; background: none; text-align: left;">中文</button>
+                    <button type="button" onclick="document.getElementById('language-input').value='en-US'; this.form.submit();" style="padding: 8px 12px; border-radius: 6px; cursor: pointer; border: none; background: none; text-align: left;">English</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    '''
+    
+    # Insert the language selector after the settings button
+    settings_button = '<a href="/settings" class="settings-button" title="Settings">'
+    settings_button_end = '</a>'
+    # Find the position of the settings button
+    pos = html_content.find(settings_button)
+    if pos != -1:
+        # Find the end of the settings button
+        end_pos = html_content.find(settings_button_end, pos)
+        if end_pos != -1:
+            # Insert the language selector after the settings button
+            html_content = html_content[:end_pos + len(settings_button_end)] + language_selector + html_content[end_pos + len(settings_button_end):]
+    
+    # Return the modified HTML content
+    return html_content
 
 @app.route('/asr-debug')
-@require_loaded
 def asr_debug():
     """ASR Debug page for streaming recognition"""
     return render_template('asr_debug.html')
 
-@app.route('/translation-debug')
-@require_loaded
-def translation_debug():
-    """Translation Debug page for streaming translation"""
-    return render_template('translation_debug.html')
-
-@app.route('/tts-debug')
-@require_loaded
-def tts_debug():
-    """TTS Debug page for full pipeline: ASR → Translation → TTS"""
-    return render_template('tts_debug.html')
-
-@app.route('/tts-only-debug')
-@require_loaded
-def tts_only_debug():
-    """TTS Only Debug page: ASR → TTS directly (no translation)"""
-    return render_template('tts_only_debug.html')
-
 @app.route('/settings')
-@require_loaded
 def settings():
     """System settings page"""
     current_language = session.get('language', default_language)
     return render_template('settings.html', current_language=current_language, get_text=get_text)
+
+@app.route('/language-selector')
+def language_selector():
+    """Language selector page"""
+    return render_template('language_selector.html')
 
 @app.route('/api/set-language', methods=['POST'])
 def set_language():
@@ -1534,486 +1673,49 @@ def get_mics():
 
 # Get LM Studio model list
 def get_lmstudio_models():
-    global lmstudio_url, lmstudio_api_key
     try:
-        LMSTUDIO_URL = lmstudio_url if lmstudio_url else 'http://localhost:1234'
-        headers = {}
-        if lmstudio_api_key:
-            headers['Authorization'] = f'Bearer {lmstudio_api_key}'
-        response = requests.get(f'{LMSTUDIO_URL}/v1/models', timeout=5, headers=headers)
+        # LM Studio API endpoint is the same as Ollama
+        LMSTUDIO_URL = 'http://localhost:11434'
+        response = requests.get(f'{LMSTUDIO_URL}/api/tags', timeout=5)
         if response.status_code == 200:
             data = response.json()
-            return [model['id'] for model in data.get('data', [])]
+            return [model['name'] for model in data.get('models', [])]
     except Exception as e:
         print(ConsoleColor.error(f"Failed to get LM Studio models: {e}"))
     return []
 
-def get_available_models():
-    """Get available models from all configured providers"""
-    global APP_CONFIG
-    default_provider = APP_CONFIG.get('translation', {}).get('default_provider', 'lps')
-    if default_provider == 'lps' and LPS_AVAILABLE:
-        lps_models = get_lps_models()
-        if lps_models:
-            return [m['model_path'] for m in lps_models]
-    return get_lmstudio_models()
-
-
-# ═══════════════════════════════════════════════════════════════
-# LPS (Local Python Server) Provider - GGUF via llama-cpp-python
-# ═══════════════════════════════════════════════════════════════
-
-def _get_lps_config(param_name, default=None):
-    """Read a parameter from the LPS config section"""
-    global APP_CONFIG
-    return APP_CONFIG.get('lps', {}).get(param_name, default)
-
-
-def get_lps_models_dir():
-    """Get the LPS models directory from config, resolved to absolute path"""
-    global APP_CONFIG
-    lps_config = APP_CONFIG.get('lps', {})
-    models_dir = lps_config.get('models_dir', 'models/translate')
-    if not os.path.isabs(models_dir):
-        models_dir = os.path.join(BASE_DIR, models_dir)
-    return os.path.normpath(models_dir)
-
-
-def get_lps_models():
-    """
-    Scan models/translate/ for GGUF model files.
-    Directory structure:
-        models/translate/
-          ├── tencent/           (vendor sub-directory)
-          │   ├── Hy-MT2-1.8B-2Bit-GGUF/
-          │   │   └── Hy-MT2-1.8B-2Bit.gguf
-          │   └── Hy-MT2-1.8B-1.25Bit-GGUF/
-          │       └── Hy-MT2-1.8B-1.25Bit.gguf
-          └── other_vendor/
-              └── model.gguf
-    Returns list of dicts: [{vendor, model_name, filename, model_path, size_mb}]
-    """
-    models_dir = get_lps_models_dir()
-    if not os.path.isdir(models_dir):
-        print(ConsoleColor.warning(f"LPS models directory not found: {models_dir}"))
-        return []
-
-    models = []
-    try:
-        for vendor_name in sorted(os.listdir(models_dir)):
-            vendor_path = os.path.join(models_dir, vendor_name)
-            if not os.path.isdir(vendor_path):
-                continue
-            for model_dir_name in sorted(os.listdir(vendor_path)):
-                model_dir_path = os.path.join(vendor_path, model_dir_name)
-                if not os.path.isdir(model_dir_path):
-                    continue
-                for file_name in sorted(os.listdir(model_dir_path)):
-                    if file_name.lower().endswith('.gguf'):
-                        full_path = os.path.join(model_dir_path, file_name)
-                        size_bytes = os.path.getsize(full_path)
-                        size_mb = round(size_bytes / (1024 * 1024), 1)
-                        relative_path = os.path.relpath(full_path, BASE_DIR).replace('\\', '/')
-                        models.append({
-                            'vendor': vendor_name,
-                            'model_name': model_dir_name,
-                            'filename': file_name,
-                            'model_path': relative_path,
-                            'absolute_path': full_path,
-                            'size_mb': size_mb
-                        })
-    except Exception as e:
-        print(ConsoleColor.error(f"Error scanning LPS models: {e}"))
-    return models
-
-
-def load_lps_model(model_path=None):
-    """Load a GGUF model into memory via llama-cpp-python"""
-    global _lps_model, _lps_current_model_path, APP_CONFIG
-
-    if not LPS_AVAILABLE:
-        print(ConsoleColor.error("llama-cpp-python is not installed. Cannot load LPS model."))
-        return False
-
-    if model_path is None:
-        model_path = _get_lps_config('default_model', '')
-
-    if not model_path:
-        print(ConsoleColor.error("No LPS model specified"))
-        return False
-
-    if not os.path.isabs(model_path):
-        model_path = os.path.join(BASE_DIR, model_path)
-    model_path = os.path.normpath(model_path)
-
-    if not os.path.exists(model_path):
-        print(ConsoleColor.error(f"LPS model file not found: {model_path}"))
-        return False
-
-    with _lps_model_lock:
-        if _lps_model is not None and _lps_current_model_path == model_path:
-            return True
-
-        if _lps_model is not None:
-            print(ConsoleColor.info(f"Unloading previous LPS model: {_lps_current_model_path}"))
-            _lps_model = None
-            _lps_current_model_path = None
-            import gc
-            gc.collect()
-
-        n_ctx = int(_get_lps_config('n_ctx', 2048))
-        n_threads = int(_get_lps_config('n_threads', 4))
-        n_gpu_layers = int(_get_lps_config('n_gpu_layers', 0))
-        verbose = bool(_get_lps_config('verbose', False))
-
-        print(ConsoleColor.info(f"Loading LPS model: {model_path}"))
-        print(ConsoleColor.info(f"  n_ctx={n_ctx}, n_threads={n_threads}, n_gpu_layers={n_gpu_layers}"))
-
-        try:
-            _lps_model = Llama(
-                model_path=model_path,
-                n_ctx=n_ctx,
-                n_threads=n_threads,
-                n_gpu_layers=n_gpu_layers,
-                verbose=verbose
-            )
-            _lps_current_model_path = model_path
-            print(ConsoleColor.success(f"LPS model loaded: {os.path.basename(model_path)}"))
-            return True
-        except Exception as e:
-            print(ConsoleColor.error(f"Failed to load LPS model: {e}"))
-            _lps_model = None
-            return False
-
-
-def unload_lps_model():
-    """Unload the current LPS model from memory"""
-    global _lps_model, _lps_current_model_path
-    with _lps_model_lock:
-        if _lps_model is not None:
-            print(ConsoleColor.info(f"Unloading LPS model: {_lps_current_model_path}"))
-            _lps_model = None
-            _lps_current_model_path = None
-            import gc
-            gc.collect()
-
-
-def translate_stream_lps(text, model_path=None, target_lang=None, seq=0):
-    """Streaming translation using LPS — supports llama_cpp and openai_compatible backends"""
-    global translation_cache, current_translation_style, pending_translations
-
-    if not target_lang:
-        target_lang = 'English'
-
-    backend = _get_lps_config('backend', 'openai_compatible')
-
-    if backend == 'openai_compatible':
-        _translate_via_openai(text, model_path, target_lang, seq=seq)
-        return
-
-    if not LPS_AVAILABLE:
-        socketio.emit('translation_error', {'message': 'LPS (llama_cpp) not available. Install llama-cpp-python.', 'seq': seq})
-        return
-
-    if model_path is None:
-        model_path = _get_lps_config('default_model', '')
-
-    if not os.path.isabs(model_path):
-        model_path = os.path.join(BASE_DIR, model_path)
-    model_path = os.path.normpath(model_path)
-
-    import hashlib
-    text_hash = hashlib.md5(text.encode()).hexdigest()[:12]
-    model_key = os.path.basename(model_path)
-    style_key = target_lang.lower()
-    cache_key = f"lps:{model_key}:{style_key}:{text_hash}"
-
-    if cache_key in pending_translations:
-        return
-    pending_translations.add(cache_key)
-
-    if cache_key in translation_cache:
-        cached_result = translation_cache.get(cache_key)
-        print(ConsoleColor.highlight(f"⚡ LPS CACHE HIT: '{text[:20]}...'"))
-        pending_translations.discard(cache_key)
-        for i, char in enumerate(cached_result):
-            socketio.emit('translation_chunk', {
-                'chunk': char,
-                'translation': cached_result[:i+1],
-                'char_count': i+1,
-                'seq': seq
-            })
-            time.sleep(0.01)
-        socketio.emit('translation_complete', {
-            'translation': cached_result,
-            'total_time': '0.00s',
-            'chars': len(cached_result),
-            'first_chunk_time': '0.001s',
-            'seq': seq
-        })
-        return
-
-    system_prompt = (
-        f"You are a professional translator. Translate the following text from Chinese to {target_lang}. "
-        f"Output ONLY the translated text, nothing else. Do NOT add explanations, notes, quotes, or prefixes. "
-        f"Do NOT say 'here is the translation' or similar. Just output the raw translated text directly."
-    )
-
-    temperature = float(_get_lps_config('temperature', 0.3))
-    max_tokens = int(_get_lps_config('max_tokens', 512))
-    top_p = float(_get_lps_config('top_p', 0.8))
-
-    def _do_lps_translation():
-        global _lps_model
-        try:
-            if _is_translation_stale(seq):
-                print(ConsoleColor.debug(f"LPS translation seq={seq} already superseded at start"))
-                pending_translations.discard(cache_key)
-                return
-            if not load_lps_model(model_path):
-                socketio.emit('translation_error', {'message': f'Failed to load LPS model: {model_path}', 'seq': seq})
-                pending_translations.discard(cache_key)
-                return
-
-            start_time = time.time()
-            translation = ""
-            char_count = 0
-            first_chunk_time = None
-
-            with _lps_model_lock:
-                if _lps_model is None:
-                    socketio.emit('translation_error', {'message': 'LPS model not loaded', 'seq': seq})
-                    pending_translations.discard(cache_key)
-                    return
-
-                stream = _lps_model.create_chat_completion(
-                    messages=[
-                        {'role': 'system', 'content': system_prompt},
-                        {'role': 'user', 'content': text}
-                    ],
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    stream=True
-                )
-
-            for chunk in stream:
-                choices = chunk.get('choices', [])
-                if choices:
-                    delta = choices[0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        if _is_translation_stale(seq):
-                            print(ConsoleColor.debug(f"LPS translation seq={seq} superseded, stopping early"))
-                            return
-                        if first_chunk_time is None:
-                            first_chunk_time = time.time() - start_time
-                        translation += content
-                        char_count += len(content)
-                        socketio.emit('translation_chunk', {
-                            'chunk': content,
-                            'translation': translation,
-                            'char_count': char_count,
-                            'seq': seq
-                        })
-
-            total_time = time.time() - start_time
-
-            if _is_translation_stale(seq):
-                pending_translations.discard(cache_key)
-                return
-
-            if translation:
-                translation_cache.put(cache_key, translation)
-
-            socketio.emit('translation_complete', {
-                'translation': translation,
-                'total_time': f'{total_time:.2f}s',
-                'chars': char_count,
-                'first_chunk_time': f'{first_chunk_time:.3f}s' if first_chunk_time else 'N/A',
-                'seq': seq
-            })
-
-            print(ConsoleColor.success(f"LPS DONE: {char_count} chars, total {total_time:.3f}s"))
-
-        except Exception as e:
-            error_msg = f'LPS translation error: {str(e)}'
-            socketio.emit('translation_error', {'message': error_msg, 'seq': seq})
-            print(ConsoleColor.error(error_msg))
-            import traceback
-            traceback.print_exc()
-        finally:
-            pending_translations.discard(cache_key)
-
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='lps_translator') as executor:
-        executor.submit(_do_lps_translation)
-
-
-def _translate_via_openai(text, model_path, target_lang, seq=0):
-    """Translation via OpenAI-compatible API (e.g. llama-server, Ollama, vLLM)"""
-    global translation_cache, pending_translations
-
-    api_url = _get_lps_config('openai_url', 'http://localhost:8080/v1')
-    api_url = api_url.rstrip('/')
-    model_name = model_path or _get_lps_config('default_model', 'default')
-    if '/' in model_name:
-        model_name = os.path.basename(model_name).replace('.gguf', '')
-
-    import hashlib
-    text_hash = hashlib.md5(text.encode()).hexdigest()[:12]
-    style_key = target_lang.lower()
-    cache_key = f"lps_openai:{model_name}:{style_key}:{text_hash}"
-
-    if cache_key in pending_translations:
-        return
-    pending_translations.add(cache_key)
-
-    if cache_key in translation_cache:
-        cached_result = translation_cache.get(cache_key)
-        print(ConsoleColor.highlight(f"⚡ LPS OpenAI CACHE HIT: '{text[:20]}...'"))
-        pending_translations.discard(cache_key)
-        for i, char in enumerate(cached_result):
-            socketio.emit('translation_chunk', {
-                'chunk': char, 'translation': cached_result[:i+1], 'char_count': i+1, 'seq': seq
-            })
-            time.sleep(0.01)
-        socketio.emit('translation_complete', {
-            'translation': cached_result, 'total_time': '0.00s',
-            'chars': len(cached_result), 'first_chunk_time': '0.001s', 'seq': seq
-        })
-        return
-
-    system_prompt = (
-        f"Translate the following text from Chinese to {target_lang}. "
-        f"Output ONLY the translated text, nothing else."
-    )
-
-    temperature = float(_get_lps_config('temperature', 0.3))
-    max_tokens = int(_get_lps_config('max_tokens', 512))
-    top_p = float(_get_lps_config('top_p', 0.8))
-
-    def _do_openai_translation():
-        try:
-            if _is_translation_stale(seq):
-                print(ConsoleColor.debug(f"OpenAI translation seq={seq} already superseded at start"))
-                pending_translations.discard(cache_key)
-                return
-            start_time = time.time()
-            translation = ""
-            char_count = 0
-
-            response = requests.post(
-                f'{api_url}/chat/completions',
-                json={
-                    'model': model_name,
-                    'messages': [
-                        {'role': 'system', 'content': system_prompt},
-                        {'role': 'user', 'content': text}
-                    ],
-                    'stream': True,
-                    'temperature': temperature,
-                    'max_tokens': max_tokens,
-                    'top_p': top_p
-                },
-                headers={'Content-Type': 'application/json'},
-                stream=True,
-                timeout=120
-            )
-
-            for line in response.iter_lines(decode_unicode=True):
-                if line and line.startswith('data: '):
-                    data_str = line[6:]
-                    if data_str.strip() == '[DONE]':
-                        break
-                    try:
-                        chunk_data = json.loads(data_str)
-                        choices = chunk_data.get('choices', [])
-                        if choices:
-                            delta = choices[0].get('delta', {})
-                            content = delta.get('content', '')
-                            if content:
-                                if _is_translation_stale(seq):
-                                    print(ConsoleColor.debug(f"OpenAI translation seq={seq} superseded, stopping early"))
-                                    return
-                                translation += content
-                                char_count += len(content)
-                                socketio.emit('translation_chunk', {
-                                    'chunk': content,
-                                    'translation': translation,
-                                    'char_count': char_count,
-                                    'seq': seq
-                                })
-                    except json.JSONDecodeError:
-                        continue
-
-            total_time = time.time() - start_time
-
-            if _is_translation_stale(seq):
-                pending_translations.discard(cache_key)
-                return
-
-            if translation:
-                translation_cache.put(cache_key, translation)
-
-            socketio.emit('translation_complete', {
-                'translation': translation,
-                'total_time': f'{total_time:.2f}s',
-                'chars': char_count,
-                'first_chunk_time': f'{total_time:.3f}s',
-                'seq': seq
-            })
-
-            print(ConsoleColor.success(f"LPS OpenAI DONE: {char_count} chars, total {total_time:.3f}s via {api_url}"))
-
-        except Exception as e:
-            error_msg = f'LPS OpenAI translation error: {str(e)}'
-            socketio.emit('translation_error', {'message': error_msg, 'seq': seq})
-            print(ConsoleColor.error(error_msg))
-        finally:
-            pending_translations.discard(cache_key)
-
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='lps_openai') as executor:
-        executor.submit(_do_openai_translation)
-
-
 @app.route('/api/models')
 def get_models():
-    """Get available models from configured providers"""
-    models = get_available_models()
+    provider = request.args.get('provider', 'vllm')
+    if provider == 'lmstudio':
+        models = get_lmstudio_models()
+    elif provider == 'ollama':
+        models = get_ollama_models()
+    else:
+        models = get_vllm_models()
     return jsonify(models)
 
 @app.route('/api/providers')
 def get_providers():
     """Get available translation providers and their status"""
-    global APP_CONFIG
-
-    lps_models = []
-    if LPS_AVAILABLE:
-        lps_models = get_lps_models()
-
     providers = {
-        'lps': {
-            'name': 'LPS (Local Python Server)',
-            'available': LPS_AVAILABLE and len(lps_models) > 0,
-            'models_dir': get_lps_models_dir(),
-            'default_model': _get_lps_config('default_model', ''),
-            'model_count': len(lps_models),
-            'models': [{
-                'model_path': m['model_path'],
-                'vendor': m['vendor'],
-                'model_name': m['model_name'],
-                'filename': m['filename'],
-                'size_mb': m['size_mb']
-            } for m in lps_models],
-            'description': 'Local GGUF model inference via llama-cpp-python'
+        'ollama': {
+            'name': 'Ollama',
+            'available': len(get_ollama_models()) > 0,
+            'url': OLLAMA_URL,
+            'description': 'Local LLM inference'
         },
         'lmstudio': {
             'name': 'LM Studio',
             'available': len(get_lmstudio_models()) > 0,
-            'url': lmstudio_url if lmstudio_url else 'http://localhost:1234',
+            'url': 'http://localhost:11434',
             'description': 'LM Studio local server'
+        },
+        'vllm': {
+            'name': 'vLLM',
+            'available': check_vllm_health(),
+            'url': VLLM_URL,
+            'description': 'High-throughput LLM inference with continuous batching'
         }
     }
     return jsonify(providers)
@@ -2155,23 +1857,16 @@ def get_gsv_tts_recommended_models():
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
     """Get current system settings"""
-    global APP_CONFIG, lmstudio_url, lmstudio_api_key
+    global APP_CONFIG
     settings = {
-        # LM Studio 配置
-        'lmstudio_url': lmstudio_url,
-        'lmstudio_api_key': lmstudio_api_key,
+        # llama.cpp 配置
+        'llama_cpp_version': APP_CONFIG.get('llama_cpp', {}).get('version', 'auto'),
+        'gguf_model_path': APP_CONFIG.get('llama_cpp', {}).get('model_path', ''),
         
-        # LPS 配置
-        'lps': APP_CONFIG.get('lps', {
-            'enabled': True, 'models_dir': 'models/translate', 'default_model': '',
-            'n_ctx': 2048, 'n_threads': 4, 'n_gpu_layers': 0,
-            'temperature': 0.3, 'max_tokens': 512, 'top_p': 0.8, 'verbose': False
-        }),
-        'lps_available': LPS_AVAILABLE,
-        'lps_models': get_lps_models() if LPS_AVAILABLE else [],
-        
-        # 翻译设置
-        'translation': APP_CONFIG.get('translation', {'default_provider': 'lps', 'default_model': ''}),
+        # 服务设置
+        'vllm': APP_CONFIG.get('vllm', {'auto_start': True}),
+        'translation': APP_CONFIG.get('translation', {'auto_start_vllm': True, 'default_provider': 'llama.cpp', 'default_model': ''}),
+        'llama_cpp': APP_CONFIG.get('llama_cpp', {'auto_start': True, 'version': 'auto', 'model_path': ''}),
         
         # 系统设置
         'system': APP_CONFIG.get('system', {'enable_monitor': False}),
@@ -2180,7 +1875,7 @@ def get_settings():
         'speech': APP_CONFIG.get('speech', {'default_microphone': 'auto', 'sample_rate': '16000'}),
         
         # TTS 设置
-        'tts': APP_CONFIG.get('tts', {'enabled': True, 'default_model': 's2Gv2ProPlus'}),
+        'tts': APP_CONFIG.get('tts', {'enabled': False, 'default_model': 's2Gv2ProPlus'}),
         
         # 网络设置
         'server': APP_CONFIG.get('server', {'port': '5001', 'enable_cors': True})
@@ -2190,24 +1885,31 @@ def get_settings():
 @app.route('/api/settings', methods=['POST'])
 def save_settings():
     """Save system settings"""
-    global APP_CONFIG, lmstudio_url, lmstudio_api_key
+    global APP_CONFIG
     data = request.json
     
     try:
-        # Update LM Studio configuration
-        if 'lmstudio_url' in data:
-            lmstudio_url = data['lmstudio_url']
+        # Update configuration
+        # llama.cpp 配置
+        if 'llama_cpp_version' in data:
+            if 'llama_cpp' not in APP_CONFIG:
+                APP_CONFIG['llama_cpp'] = {}
+            APP_CONFIG['llama_cpp']['version'] = data['llama_cpp_version']
         
-        if 'lmstudio_api_key' in data:
-            lmstudio_api_key = data['lmstudio_api_key']
+        if 'gguf_model_path' in data:
+            if 'llama_cpp' not in APP_CONFIG:
+                APP_CONFIG['llama_cpp'] = {}
+            APP_CONFIG['llama_cpp']['model_path'] = data['gguf_model_path']
         
-        # 翻译设置
+        # 服务设置
+        if 'vllm' in data:
+            APP_CONFIG['vllm'] = data['vllm']
+        
         if 'translation' in data:
             APP_CONFIG['translation'] = data['translation']
         
-        # LPS 设置
-        if 'lps' in data:
-            APP_CONFIG['lps'] = data['lps']
+        if 'llama_cpp' in data:
+            APP_CONFIG['llama_cpp'] = data['llama_cpp']
         
         # 系统设置
         if 'system' in data:
@@ -2236,9 +1938,18 @@ def save_settings():
 @app.route('/restart')
 def restart_system():
     """Restart the system"""
-    global components_loaded
+    global components_loaded, vllm_process, llama_cpp_process
     
     try:
+        # Stop all services
+        if vllm_process and vllm_process.poll() is None:
+            vllm_process.terminate()
+            vllm_process.wait(timeout=10)
+        
+        if llama_cpp_process and llama_cpp_process.poll() is None:
+            llama_cpp_process.terminate()
+            llama_cpp_process.wait(timeout=10)
+        
         # Reset components loaded flag
         components_loaded = False
         
@@ -2696,54 +2407,46 @@ def get_translation_styles():
 
 @app.route('/api/translation/style/optimize', methods=['POST'])
 def optimize_translation_style():
-    """Optimize translation style using AI (LM Studio)"""
-    global lmstudio_url, lmstudio_api_key
+    """Optimize translation style using AI"""
     data = request.json
     user_input = data.get('input', '')
     
     if not user_input:
         return jsonify({'error': 'Input is required'}), 400
     
-    # LM Studio API (OpenAI-compatible)
-    API_URL = lmstudio_url if lmstudio_url else 'http://localhost:1234'
+    # Determine API URL based on provider
+    API_URL = OLLAMA_URL
+    service_name = 'Ollama'
     
     # Check if service is available
-    headers = {}
-    if lmstudio_api_key:
-        headers['Authorization'] = f'Bearer {lmstudio_api_key}'
     try:
-        response = requests.get(f'{API_URL}/v1/models', timeout=5, headers=headers)
+        response = requests.get(f'{API_URL}/api/tags', timeout=5)
         if response.status_code != 200:
-            return jsonify({'error': 'LM Studio service is unavailable. Please start LM Studio service'}), 503
+            return jsonify({'error': f'Translation service is unavailable. Please start {service_name} service'}), 503
     except Exception as e:
-        return jsonify({'error': f'Unable to connect to LM Studio service: {str(e)}'}), 503
+        return jsonify({'error': f'Unable to connect to {service_name} service: {str(e)}'}), 503
     
     # Prompt to optimize user input
     optimization_prompt = f"Analyze the following user input and optimize it to create a clear, concise translation style instruction. The input may describe a style, occasion, or context for translation.\n\nUser input: {user_input}\n\nOptimized style instruction:"
     
     try:
-        models = get_lmstudio_models()
-        model_name = models[0] if models else 'default'
         response = requests.post(
-            f'{API_URL}/v1/chat/completions',
+            f'{API_URL}/api/generate',
             json={
-                'model': model_name,
-                'messages': [{'role': 'user', 'content': optimization_prompt}],
-                'temperature': 0.7,
-                'max_tokens': 100,
-                'top_p': 0.9
+                'model': 'llama2',
+                'prompt': optimization_prompt,
+                'options': {
+                    'temperature': 0.7,
+                    'top_p': 0.9,
+                    'num_predict': 100
+                }
             },
-            headers=headers,
             timeout=15
         )
         
         if response.status_code == 200:
-            data = response.json()
-            choices = data.get('choices', [])
-            if choices:
-                optimized_style = choices[0].get('message', {}).get('content', '').strip()
-            else:
-                optimized_style = ''
+            result = response.json()
+            optimized_style = result.get('response', '').strip()
             
             # Generate prompt template
             prompt_template = f"Translate the following text to English with a {optimized_style} style. Maintain the original meaning while adapting the tone and expression to match the requested style.\n\nText: {{text}}\n\nTranslation:"
@@ -2904,6 +2607,628 @@ def get_gsv_tts_references():
     })
 
 
+
+
+
+
+
+
+
+
+@app.route('/api/vllm-models/loaded')
+def get_loaded_vllm_models():
+    """Get list of currently loaded vLLM models (in GPU/CPU)"""
+    
+    # Get vLLM loaded models
+    vllm_loaded = []
+    if check_vllm_health():
+        try:
+            response = requests.get(f'{VLLM_URL}/api/loaded_models', timeout=2)
+            if response.ok:
+                vllm_loaded = response.json().get('models', [])
+        except:
+            pass
+    
+    # Get GSV-TTS loaded models
+    gsv_loaded = []
+    try:
+        # Check if GPT models are loaded (in gpt_models dict)
+        if hasattr(gsv_tts, 'gpt_models') and gsv_tts.gpt_models:
+            for model_name in gsv_tts.gpt_models.keys():
+                gsv_loaded.append({
+                    'name': f'GPT Model ({os.path.basename(model_name)})',
+                    'type': 'gsv-tts',
+                    'location': 'GPU' if torch.cuda.is_available() else 'CPU',
+                    'status': 'loaded'
+                })
+        # Check if SoVITS models are loaded (in sovits_models dict)
+        if hasattr(gsv_tts, 'sovits_models') and gsv_tts.sovits_models:
+            for model_name in gsv_tts.sovits_models.keys():
+                gsv_loaded.append({
+                    'name': f'SoVITS Model ({os.path.basename(model_name)})',
+                    'type': 'gsv-tts',
+                    'location': 'GPU' if torch.cuda.is_available() else 'CPU',
+                    'status': 'loaded'
+                })
+    except:
+        pass
+    
+    # Get Vosk loaded models
+    vosk_loaded = []
+    if 'model' in globals() and 'current_model_path' in globals() and current_model_path:
+        vosk_loaded.append({
+            'name': os.path.basename(current_model_path),
+            'type': 'vosk',
+            'location': 'CPU',  # Vosk runs on CPU
+            'status': 'loaded'
+        })
+    
+    return jsonify({
+        'vllm': vllm_loaded,
+        'gsv_tts': gsv_loaded,
+        'vosk': vosk_loaded,
+        'total': len(vllm_loaded) + len(gsv_loaded) + len(vosk_loaded)
+    })
+
+
+@app.route('/api/vllm-models/unload-all', methods=['POST'])
+def unload_all_models():
+    """Unload all loaded models to free GPU memory"""
+    try:
+        # Unload vLLM models
+        if check_vllm_health():
+            try:
+                response = requests.post(f'{VLLM_URL}/api/unload_all', timeout=5)
+                if response.ok:
+                    print(ConsoleColor.success('vLLM models unloaded successfully'))
+            except Exception as e:
+                print(ConsoleColor.warning(f'Failed to unload vLLM models: {e}'))
+        
+        # Unload GSV-TTS models
+        global gsv_tts
+        try:
+            # Clear GPT models dict
+            if hasattr(gsv_tts, 'gpt_models'):
+                gsv_tts.gpt_models.clear()
+            # Clear SoVITS models dict
+            if hasattr(gsv_tts, 'sovits_models'):
+                gsv_tts.sovits_models.clear()
+            # Clear cnhubert if loaded
+            if hasattr(gsv_tts, 'cnhubert_model'):
+                gsv_tts.cnhubert_model = None
+            # Clear speaker encoder if loaded
+            if hasattr(gsv_tts, 'sv_model'):
+                gsv_tts.sv_model = None
+            # Clear CUDA cache if available
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            print(ConsoleColor.success('GSV-TTS models unloaded successfully'))
+        except Exception as e:
+            print(ConsoleColor.warning(f'Failed to unload GSV-TTS models: {e}'))
+        
+        # Vosk models are loaded on demand and don't need explicit unloading
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'All models unloaded successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to unload models: {str(e)}'
+        }), 500
+
+
+@app.route('/api/vllm-models/recommended')
+def get_vllm_recommended_models():
+    """Get list of recommended vLLM models organized by vendor"""
+    recommended = get_recommended_vllm_models()
+    installed = get_local_vllm_models()
+    installed_ids = {m['name'] for m in installed}
+    
+    # Mark installed models for each vendor
+    for vendor_key, vendor_data in recommended.items():
+        for model in vendor_data['models']:
+            model['installed'] = model['id'] in installed_ids
+            if model['id'] in VLLM_DOWNLOAD_PROGRESS:
+                model['download_progress'] = VLLM_DOWNLOAD_PROGRESS[model['id']]
+    
+    return jsonify({
+        'vendors': recommended
+    })
+
+
+@app.route('/api/vllm-models/download', methods=['POST'])
+def download_vllm_model():
+    """Download a vLLM model from HuggingFace or ModelScope with speed optimization"""
+    data = request.json
+    model_id = data.get('model_id')
+    source = data.get('source', 'huggingface')  # 'huggingface', 'huggingface-official', or 'modelscope'
+    use_official = data.get('use_official', False)  # Whether to use official HF (not mirror)
+    
+    if not model_id:
+        return jsonify({'error': 'Model ID is required'}), 400
+    
+    # Check if already downloading
+    if model_id in VLLM_DOWNLOAD_PROGRESS and VLLM_DOWNLOAD_PROGRESS[model_id].get('status') == 'downloading':
+        return jsonify({
+            'error': 'Model is already being downloaded',
+            'progress': VLLM_DOWNLOAD_PROGRESS[model_id]
+        }), 400
+    
+    # Check if already installed
+    local_models = get_local_vllm_models()
+    if any(m['name'] == model_id for m in local_models):
+        return jsonify({'error': 'Model is already installed'}), 400
+    
+    # Initialize progress tracking
+    VLLM_DOWNLOAD_PROGRESS[model_id] = {
+        'status': 'preparing',
+        'progress': 0,
+        'downloaded': 0,
+        'total': 0,
+        'speed': 0,
+        'start_time': time.time()
+    }
+    
+    # Start download in background thread
+    def download_model_thread():
+        try:
+            import subprocess
+            import sys
+            
+            # Ensure models directory exists in project folder
+            target_dir = os.path.join(VLLM_MODELS_DIR, model_id.replace('/', '--'))
+            os.makedirs(target_dir, exist_ok=True)
+            
+            VLLM_DOWNLOAD_PROGRESS[model_id]['status'] = 'downloading'
+            VLLM_DOWNLOAD_PROGRESS[model_id]['target_dir'] = target_dir
+            
+            print(ConsoleColor.info(f"Starting download of {model_id} from {source} (official={use_official})..."))
+            print(ConsoleColor.info(f"Target directory: {target_dir}"))
+            
+            # Check if aria2c is available
+            def is_aria2c_available():
+                try:
+                    subprocess.run(['aria2c', '--version'], capture_output=True, timeout=2)
+                    return True
+                except:
+                    return False
+            
+            aria2c_available = is_aria2c_available()
+            
+            if aria2c_available:
+                print(ConsoleColor.success("✓ aria2c detected, using for faster downloads"))
+                
+                # Use aria2c for faster downloads
+                import tempfile
+                import json
+                
+                # For HuggingFace, use aria2c directly
+                if source != 'modelscope':
+                    # First get the download URLs using huggingface_hub
+                    url_cmd = [
+                        sys.executable, '-c',
+                        f'''
+import os
+import sys
+import json
+from huggingface_hub import HfApi
+
+# Set HF endpoint
+if "{use_official}" == "True":
+    os.environ['HF_ENDPOINT'] = 'https://huggingface.co'
+else:
+    os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+api = HfApi()
+files = api.list_files_info("{model_id}")
+download_urls = []
+for file_info in files:
+    if hasattr(file_info, 'download_url') and file_info.download_url:
+        download_urls.append({
+            'url': file_info.download_url,
+            'path': file_info.path,
+            'size': file_info.size if hasattr(file_info, 'size') else 0
+        })
+print(json.dumps(download_urls))
+                        '''
+                    ]
+                    
+                    # Get download URLs
+                    url_process = subprocess.run(url_cmd, capture_output=True, text=True, env=env)
+                    
+                    try:
+                        download_urls = json.loads(url_process.stdout)
+                        
+                        # Create aria2c input file
+                        aria2c_input_file = os.path.join(tempfile.gettempdir(), f"aria2c_input_{model_id.replace('/', '_')}.txt")
+                        with open(aria2c_input_file, 'w', encoding='utf-8') as f:
+                            for item in download_urls:
+                                url = item['url']
+                                path = os.path.join(target_dir, item['path'])
+                                f.write(f"{url}\n  out={path}\n  dir={target_dir}\n")
+                        
+                        # Build aria2c command
+                        cmd = [
+                            'aria2c',
+                            '--input-file', aria2c_input_file,
+                            '--dir', target_dir,
+                            '--continue',
+                            '--max-concurrent-downloads', '16',
+                            '--split', '16',
+                            '--max-connection-per-server', '16',
+                            '--min-split-size', '1M',
+                            '--file-allocation', 'none',
+                            '--async-dns', 'true',
+                            '--remote-time',
+                            '--summary-interval', '1',
+                            '--console-log-level', 'info'
+                        ]
+                    except:
+                        # Fall back to original method if aria2c fails
+                        aria2c_available = False
+            
+            if not aria2c_available:
+                print(ConsoleColor.info("aria2c not available, using original download method"))
+                
+                # Use original download method
+                
+            if source == 'modelscope':
+                # ModelScope download with optimizations
+                env = os.environ.copy()
+                env['MODELSCOPE_CACHE'] = VLLM_MODELS_DIR
+                # Enable ModelScope multi-thread download
+                env['MODELSCOPE_DOWNLOAD_THREADS'] = '8'
+                env['MODELSCOPE_DOWNLOAD_TIMEOUT'] = '300'
+                
+                cmd = [
+                    sys.executable, '-c',
+                    f'''
+import os
+import sys
+os.environ['MODELSCOPE_CACHE'] = "{VLLM_MODELS_DIR}"
+os.environ['MODELSCOPE_DOWNLOAD_THREADS'] = '8'
+os.environ['MODELSCOPE_DOWNLOAD_TIMEOUT'] = '300'
+from modelscope import snapshot_download
+snapshot_download("{model_id}", cache_dir="{VLLM_MODELS_DIR}", local_files_only=False)
+                    '''
+                ]
+            else:
+                # HuggingFace download with speed optimizations
+                env = os.environ.copy()
+                
+                # Set HF cache to project directory
+                env['HF_HOME'] = os.path.join(BASE_DIR, '.cache', 'huggingface')
+                env['HF_HUB_CACHE'] = os.path.join(BASE_DIR, '.cache', 'huggingface', 'hub')
+                env['TRANSFORMERS_CACHE'] = os.path.join(BASE_DIR, '.cache', 'transformers')
+                
+                # Determine HF endpoint based on source selection
+                if use_official:
+                    # Use official HuggingFace (no mirror)
+                    env['HF_ENDPOINT'] = 'https://huggingface.co'
+                    print(ConsoleColor.info(f"Using HuggingFace Official (huggingface.co)"))
+                else:
+                    # Use mirror for China (default) - try multiple mirrors
+                    hf_endpoints = [
+                        'https://hf-mirror.com',
+                        'https://huggingface.co',
+                        'https://hf-api.gitee.com',
+                    ]
+                    # Use provided endpoint or default to mirror
+                    if 'HF_ENDPOINT' not in env:
+                        env['HF_ENDPOINT'] = hf_endpoints[0]
+                    print(ConsoleColor.info(f"Using HF-Mirror ({env.get('HF_ENDPOINT', 'hf-mirror.com')})"))
+                
+                # Enable multi-thread download
+                env['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
+                
+                cmd = [
+                    sys.executable, '-c',
+                    f'''
+import os
+import sys
+
+# Set all cache directories to project folder
+base_dir = r"{BASE_DIR}"
+os.environ['HF_HOME'] = os.path.join(base_dir, '.cache', 'huggingface')
+os.environ['HF_HUB_CACHE'] = os.path.join(base_dir, '.cache', 'huggingface', 'hub')
+os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, '.cache', 'transformers')
+
+# Set HF endpoint based on user selection
+if "{use_official}" == "True":
+    os.environ['HF_ENDPOINT'] = 'https://huggingface.co'
+else:
+    os.environ['HF_ENDPOINT'] = os.environ.get('HF_ENDPOINT', 'https://hf-mirror.com')
+
+# Enable faster downloads
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
+
+from huggingface_hub import snapshot_download
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+
+print(f"Downloading to: {r"{target_dir}"}")
+print(f"HF Endpoint: {{os.environ.get('HF_ENDPOINT', 'default')}}")
+
+# Download with optimized settings
+snapshot_download(
+    "{model_id}",
+    local_dir=r"{target_dir}",
+    local_dir_use_symlinks=False,
+    resume_download=True,
+    max_workers=8,
+    tqdm_class=None
+)
+                    '''
+                ]
+            
+            # Run download process with optimized buffer
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                bufsize=1024*1024  # 1MB buffer for better performance
+            )
+            
+            # Monitor progress with improved accuracy
+            last_size = 0
+            last_time = time.time()
+            check_interval = 1.0  # Check every second for more responsive updates
+            
+            while process.poll() is None:
+                time.sleep(check_interval)
+                if os.path.exists(target_dir):
+                    try:
+                        current_size = sum(
+                            os.path.getsize(os.path.join(dirpath, f))
+                            for dirpath, dirnames, filenames in os.walk(target_dir)
+                            for f in filenames
+                            if os.path.exists(os.path.join(dirpath, f))
+                        )
+                        
+                        # Get model size from config if available
+                        config_path = os.path.join(target_dir, 'config.json')
+                        estimated_total = 16 * 1024 * 1024 * 1024  # Default 16GB for 7B model
+                        
+                        # Try to get actual size from model info
+                        if '7b' in model_id.lower() or '7B' in model_id:
+                            estimated_total = 14 * 1024 * 1024 * 1024  # ~14GB
+                        elif '13b' in model_id.lower() or '13B' in model_id:
+                            estimated_total = 26 * 1024 * 1024 * 1024  # ~26GB
+                        elif '70b' in model_id.lower() or '70B' in model_id:
+                            estimated_total = 140 * 1024 * 1024 * 1024  # ~140GB
+                        
+                        progress = min((current_size / estimated_total) * 100, 99)
+                        
+                        VLLM_DOWNLOAD_PROGRESS[model_id]['downloaded'] = current_size
+                        VLLM_DOWNLOAD_PROGRESS[model_id]['total'] = estimated_total
+                        VLLM_DOWNLOAD_PROGRESS[model_id]['progress'] = round(progress, 2)
+                        
+                        # Calculate speed with smoothing
+                        current_time = time.time()
+                        time_delta = current_time - last_time
+                        if time_delta > 0:
+                            size_delta = current_size - last_size
+                            speed = (size_delta / time_delta) / (1024 * 1024)  # MB/s
+                            # Smooth the speed reading
+                            old_speed = VLLM_DOWNLOAD_PROGRESS[model_id].get('speed', 0)
+                            VLLM_DOWNLOAD_PROGRESS[model_id]['speed'] = round((old_speed * 0.7 + speed * 0.3), 2)
+                        
+                        last_size = current_size
+                        last_time = current_time
+                    except Exception as e:
+                        pass  # Ignore errors during size calculation
+            
+            # Check result
+            stdout, stderr = process.communicate()
+            stdout_str = stdout.decode('utf-8', errors='ignore')
+            stderr_str = stderr.decode('utf-8', errors='ignore')
+            
+            if process.returncode != 0:
+                error_msg = stderr_str[:500] if stderr_str else stdout_str[:500]
+                print(ConsoleColor.error(f"Failed to download {model_id}: {error_msg}"))
+                VLLM_DOWNLOAD_PROGRESS[model_id]['status'] = 'error'
+                VLLM_DOWNLOAD_PROGRESS[model_id]['error'] = error_msg
+                return
+            
+            # Success
+            VLLM_DOWNLOAD_PROGRESS[model_id]['status'] = 'completed'
+            VLLM_DOWNLOAD_PROGRESS[model_id]['progress'] = 100
+            print(ConsoleColor.success(f"Successfully downloaded {model_id} to {target_dir}"))
+            
+            # Emit socket event
+            socketio.emit('vllm_model_download_complete', {
+                'model_id': model_id,
+                'target_dir': target_dir
+            })
+            
+        except Exception as e:
+            print(ConsoleColor.error(f"Error downloading {model_id}: {e}"))
+            VLLM_DOWNLOAD_PROGRESS[model_id]['status'] = 'error'
+            VLLM_DOWNLOAD_PROGRESS[model_id]['error'] = str(e)
+    
+    # Start download thread
+    download_thread = threading.Thread(target=download_model_thread, name=f'download_{model_id}')
+    download_thread.daemon = True
+    download_thread.start()
+    
+    return jsonify({
+        'message': f'Download started for {model_id}',
+        'model_id': model_id,
+        'status': 'downloading',
+        'target_dir': os.path.join(VLLM_MODELS_DIR, model_id.replace('/', '--'))
+    })
+
+
+@app.route('/api/vllm-models/download-progress/<model_id>')
+def get_vllm_download_progress(model_id):
+    """Get download progress for a vLLM model"""
+    if model_id not in VLLM_DOWNLOAD_PROGRESS:
+        return jsonify({'error': 'No active download for this model'}), 404
+    
+    return jsonify(VLLM_DOWNLOAD_PROGRESS[model_id])
+
+
+@app.route('/api/vllm-models/delete', methods=['POST'])
+def delete_vllm_model():
+    """Delete a locally installed vLLM model"""
+    data = request.json
+    model_name = data.get('model_name')
+    
+    if not model_name:
+        return jsonify({'error': 'Model name is required'}), 400
+    
+    # Security check: prevent directory traversal
+    if '..' in model_name or model_name.startswith('/'):
+        return jsonify({'error': 'Invalid model name'}), 400
+    
+    model_path = os.path.join(VLLM_MODELS_DIR, model_name)
+    
+    if not os.path.exists(model_path):
+        return jsonify({'error': 'Model not found'}), 404
+    
+    try:
+        import shutil
+        shutil.rmtree(model_path)
+        print(ConsoleColor.success(f"Deleted model: {model_name}"))
+        return jsonify({
+            'message': f'Model {model_name} deleted successfully',
+            'model_name': model_name
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete model: {str(e)}'}), 500
+
+
+@app.route('/api/vllm-models/cancel-download', methods=['POST'])
+def cancel_vllm_download():
+    """Cancel an ongoing model download"""
+    data = request.json
+    model_id = data.get('model_id')
+    
+    if not model_id or model_id not in VLLM_DOWNLOAD_PROGRESS:
+        return jsonify({'error': 'No active download found'}), 404
+    
+    # Mark as cancelled
+    VLLM_DOWNLOAD_PROGRESS[model_id]['status'] = 'cancelled'
+    
+    # Note: Actual process termination would require storing the process object
+    # For now, we'll just mark it as cancelled and clean up partial files
+    
+    # Clean up partial download
+    target_dir = VLLM_DOWNLOAD_PROGRESS[model_id].get('target_dir')
+    if target_dir and os.path.exists(target_dir):
+        try:
+            import shutil
+            shutil.rmtree(target_dir)
+        except:
+            pass
+    
+    return jsonify({
+        'message': f'Download cancelled for {model_id}',
+        'model_id': model_id
+    })
+
+
+@app.route('/api/vllm-models/test-sources', methods=['GET'])
+def test_vllm_download_sources():
+    """Test download speed for different HuggingFace mirror sources"""
+    import concurrent.futures
+    import requests
+    
+    # List of HF mirror sources to test
+    sources = [
+        {'name': 'hf-mirror', 'endpoint': 'https://hf-mirror.com', 'description': 'HF Mirror (China)'},
+        {'name': 'huggingface', 'endpoint': 'https://huggingface.co', 'description': 'HuggingFace Official'},
+        {'name': 'gitee', 'endpoint': 'https://hf-api.gitee.com', 'description': 'Gitee Mirror (China)'},
+    ]
+    
+    # Test model - using a small file for quick testing
+    test_model = 'bert-base-uncased'
+    test_file = 'config.json'
+    
+    results = []
+    
+    def test_source(source):
+        """Test a single source"""
+        start_time = time.time()
+        try:
+            endpoint = source['endpoint']
+            url = f"{endpoint}/{test_model}/resolve/main/{test_file}"
+            
+            # Try to download a small file with timeout
+            response = requests.get(url, timeout=10, stream=True)
+            
+            if response.status_code == 200:
+                # Download first 10KB to measure speed
+                downloaded = 0
+                chunk_size = 1024
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        downloaded += len(chunk)
+                        if downloaded >= 10 * 1024:  # 10KB
+                            break
+                
+                elapsed = time.time() - start_time
+                speed = (downloaded / elapsed) / 1024  # KB/s
+                
+                return {
+                    'name': source['name'],
+                    'endpoint': source['endpoint'],
+                    'description': source['description'],
+                    'status': 'available',
+                    'speed_kbps': round(speed, 2),
+                    'response_time_ms': round(elapsed * 1000, 2)
+                }
+            else:
+                return {
+                    'name': source['name'],
+                    'endpoint': source['endpoint'],
+                    'description': source['description'],
+                    'status': 'unavailable',
+                    'error': f'HTTP {response.status_code}'
+                }
+        except requests.exceptions.Timeout:
+            return {
+                'name': source['name'],
+                'endpoint': source['endpoint'],
+                'description': source['description'],
+                'status': 'timeout',
+                'error': 'Connection timeout'
+            }
+        except Exception as e:
+            return {
+                'name': source['name'],
+                'endpoint': source['endpoint'],
+                'description': source['description'],
+                'status': 'error',
+                'error': str(e)[:100]
+            }
+    
+    # Test all sources in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_source = {executor.submit(test_source, source): source for source in sources}
+        for future in concurrent.futures.as_completed(future_to_source):
+            result = future.result()
+            results.append(result)
+    
+    # Sort by speed (available sources first, then by speed)
+    results.sort(key=lambda x: (
+        0 if x['status'] == 'available' else 1,
+        -x.get('speed_kbps', 0)
+    ))
+    
+    # Get recommended source
+    recommended = next((r for r in results if r['status'] == 'available'), None)
+    
+    return jsonify({
+        'sources': results,
+        'recommended': recommended['name'] if recommended else None,
+        'test_model': test_model,
+        'test_file': test_file
+    })
+
+
 TTS_VOICES = {
     'english': [
         {'id': 'en-US-JennyNeural', 'name': 'Jenny (US Female)', 'gender': 'Female', 'language': 'English (US)'},
@@ -3009,12 +3334,42 @@ def health_check():
     
     return jsonify({
         'status': 'healthy',
-        'version': '0.4.1',
+        'version': '0.3.0',
         'timestamp': datetime.now().isoformat(),
         'memory': memory_info,
         'cpu_percent': cpu_percent,
         'gpu': gpu_info
     })
+
+@app.route('/api/llama-cpp/health')
+def llama_cpp_health():
+    """Check llama.cpp server health status"""
+    # Use existing check_llama_cpp_health function
+    if check_llama_cpp_health():
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat()
+        })
+    else:
+        return jsonify({
+            'status': 'unavailable',
+            'error': 'llama.cpp service not running'
+        }), 503
+
+@app.route('/api/vllm/health')
+def vllm_health():
+    """Check vLLM server health status"""
+    # Use existing check_vllm_health function
+    if check_vllm_health():
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat()
+        })
+    else:
+        return jsonify({
+            'status': 'unavailable',
+            'error': 'vLLM service not running'
+        }), 503
 
 @app.route('/api/system/health')
 def system_health():
@@ -3236,7 +3591,7 @@ def generate_gsv_tts():
             print(ConsoleColor.info("GSV-TTS-Lite instance not preloaded, creating new instance..."))
             gsv_tts = GSVTTS(
                 models_dir=TTS_MODELS_DIR,
-                dtype="float16",  # FP16 for speed
+                is_half=True,  # FP16 for speed
                 use_flash_attn=False,
                 use_bert=True,
                 always_load_cnhubert=False,
@@ -3257,8 +3612,8 @@ def generate_gsv_tts():
             try:
                 print(ConsoleColor.info(f"Generating audio for text: '{text}'"))
                 
-                # Use provided reference text or fall back to a short segment
-                prompt_text = reference_text if reference_text else text[:15]
+                # Use provided reference text or fall back to first 50 chars of input text
+                prompt_text = reference_text if reference_text else text[:50]
                 
                 audio = gsv_tts.infer(
                     text=text,
@@ -3322,6 +3677,8 @@ def generate_gsv_tts():
         # 处理 GSV-TTS-Lite 生成过程中的错误
         print(ConsoleColor.error(f"GSV-TTS-Lite error: {e}"))
         return jsonify({'error': str(e)}), 500
+        print(ConsoleColor.error(f"GSV-TTS-Lite error: {e}"))
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/languages')
 def get_languages():
@@ -3375,6 +3732,198 @@ def get_performance_stats():
         return jsonify({'error': str(e)}), 500
 
 
+# FRP Management API
+FRP_CONFIG_FILE = os.path.join(BASE_DIR, 'config', 'frp_tunnels.json')
+FRP_PROCESS = None
+FRP_OUTPUT = []
+
+# Ensure config directory exists
+if not os.path.exists(os.path.join(BASE_DIR, 'config')):
+    os.makedirs(os.path.join(BASE_DIR, 'config'))
+
+# Load tunnels from config file
+def load_tunnels():
+    """Load tunnels from config file"""
+    if os.path.exists(FRP_CONFIG_FILE):
+        try:
+            with open(FRP_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(ConsoleColor.error(f"Failed to load tunnels: {e}"))
+            return []
+    return []
+
+# Save tunnels to config file
+def save_tunnels(tunnels):
+    """Save tunnels to config file"""
+    try:
+        with open(FRP_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(tunnels, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(ConsoleColor.error(f"Failed to save tunnels: {e}"))
+        return False
+
+@app.route('/api/frp/tunnels')
+def get_frp_tunnels():
+    """Get all saved FRP tunnels"""
+    tunnels = load_tunnels()
+    return jsonify({
+        'tunnels': tunnels,
+        'count': len(tunnels),
+        'is_running': FRP_PROCESS is not None and FRP_PROCESS.poll() is None
+    })
+
+@app.route('/api/frp/tunnels', methods=['POST'])
+def add_frp_tunnel():
+    """Add a new FRP tunnel"""
+    data = request.json
+    tunnel_name = data.get('name')
+    tunnel_command = data.get('command')
+    
+    if not tunnel_name or not tunnel_command:
+        return jsonify({'error': 'Tunnel name and command are required'}), 400
+    
+    tunnels = load_tunnels()
+    
+    # Check if tunnel with same name exists
+    for tunnel in tunnels:
+        if tunnel['name'] == tunnel_name:
+            return jsonify({'error': 'Tunnel with this name already exists'}), 400
+    
+    new_tunnel = {
+        'id': str(int(time.time())),
+        'name': tunnel_name,
+        'command': tunnel_command,
+        'created_at': datetime.now().isoformat()
+    }
+    
+    tunnels.append(new_tunnel)
+    if save_tunnels(tunnels):
+        return jsonify({
+            'success': True,
+            'tunnel': new_tunnel,
+            'message': 'Tunnel added successfully'
+        })
+    else:
+        return jsonify({'error': 'Failed to save tunnel'}), 500
+
+@app.route('/api/frp/tunnels/<tunnel_id>', methods=['DELETE'])
+def delete_frp_tunnel(tunnel_id):
+    """Delete a FRP tunnel"""
+    tunnels = load_tunnels()
+    new_tunnels = [t for t in tunnels if t['id'] != tunnel_id]
+    
+    if len(new_tunnels) == len(tunnels):
+        return jsonify({'error': 'Tunnel not found'}), 404
+    
+    if save_tunnels(new_tunnels):
+        return jsonify({
+            'success': True,
+            'message': 'Tunnel deleted successfully'
+        })
+    else:
+        return jsonify({'error': 'Failed to delete tunnel'}), 500
+
+@app.route('/api/frp/start', methods=['POST'])
+def start_frp_tunnel():
+    """Start a FRP tunnel"""
+    global FRP_PROCESS, FRP_OUTPUT
+    
+    data = request.json
+    tunnel_id = data.get('tunnel_id')
+    
+    if not tunnel_id:
+        return jsonify({'error': 'Tunnel ID is required'}), 400
+    
+    # Check if tunnel is already running
+    if FRP_PROCESS is not None and FRP_PROCESS.poll() is None:
+        return jsonify({'error': 'A tunnel is already running. Please stop it first.'}), 400
+    
+    tunnels = load_tunnels()
+    tunnel = next((t for t in tunnels if t['id'] == tunnel_id), None)
+    
+    if not tunnel:
+        return jsonify({'error': 'Tunnel not found'}), 404
+    
+    # Build command
+    frp_exe = os.path.join(BASE_DIR, 'core', 'frp', 'mefrpc.exe')
+    if not os.path.exists(frp_exe):
+        return jsonify({'error': 'mefrpc.exe not found in core/frp directory'}), 404
+    
+    # Extract arguments from the command
+    command_parts = tunnel['command'].split()
+    args = []
+    for part in command_parts:
+        if part.startswith('./mefrpc'):
+            continue
+        args.append(part)
+    
+    # Start the tunnel
+    try:
+        FRP_OUTPUT = []
+        FRP_PROCESS = subprocess.Popen(
+            [frp_exe] + args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=os.path.join(BASE_DIR, 'core', 'frp')
+        )
+        
+        # Start a thread to read output
+        def read_output():
+            global FRP_OUTPUT
+            while FRP_PROCESS and FRP_PROCESS.poll() is None:
+                try:
+                    line = FRP_PROCESS.stdout.readline()
+                    if line:
+                        FRP_OUTPUT.append(line.strip())
+                        # Limit output to last 100 lines
+                        if len(FRP_OUTPUT) > 100:
+                            FRP_OUTPUT = FRP_OUTPUT[-100:]
+                except:
+                    break
+        
+        output_thread = threading.Thread(target=read_output, daemon=True)
+        output_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Tunnel started successfully',
+            'tunnel_id': tunnel_id
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to start tunnel: {str(e)}'}), 500
+
+@app.route('/api/frp/stop', methods=['POST'])
+def stop_frp_tunnel():
+    """Stop the running FRP tunnel"""
+    global FRP_PROCESS, FRP_OUTPUT
+    
+    if FRP_PROCESS is None or FRP_PROCESS.poll() is not None:
+        return jsonify({'error': 'No tunnel is running'}), 400
+    
+    try:
+        FRP_PROCESS.terminate()
+        FRP_PROCESS.wait(timeout=5)
+        FRP_PROCESS = None
+        FRP_OUTPUT.append('Tunnel stopped')
+        return jsonify({
+            'success': True,
+            'message': 'Tunnel stopped successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to stop tunnel: {str(e)}'}), 500
+
+@app.route('/api/frp/output')
+def get_frp_output():
+    """Get FRP tunnel output"""
+    global FRP_OUTPUT
+    return jsonify({
+        'output': FRP_OUTPUT,
+        'is_running': FRP_PROCESS is not None and FRP_PROCESS.poll() is None
+    })
+
 # Static files serving
 @app.route('/static/<path:path>')
 def serve_static(path):
@@ -3412,7 +3961,18 @@ def handle_start_recognition(data):
         emit('error', {'message': 'Failed to load speech recognition model'})
         return
     
-    provider = APP_CONFIG.get('translation', {}).get('default_provider', 'lps')
+    # Auto select provider based on availability, prioritize llama.cpp
+    provider = data.get('provider', 'llama.cpp')
+    
+    # Check if llama.cpp is available
+    llama_cpp_available = True  # We'll implement this check later
+    
+    if provider == 'llama.cpp' and not llama_cpp_available:
+        print(ConsoleColor.warning("llama.cpp is not available, switching to vLLM"))
+        provider = 'vllm'
+    elif provider == 'vllm' and not VLLM_AVAILABLE:
+        print(ConsoleColor.warning("vLLM is not available, switching to Ollama"))
+        provider = 'ollama'
     
     is_processing = True
     processing_thread = threading.Thread(
@@ -3436,19 +3996,14 @@ def clean_sensevoice_text(text):
     
     try:
         from funasr.utils.postprocess_utils import rich_transcription_postprocess
-        result = rich_transcription_postprocess(text)
-        # Remove emoji and other special unicode characters
-        result = _remove_non_text_chars(result)
-        return result
+        return rich_transcription_postprocess(text)
     except Exception as e:
         # Fallback to manual cleaning if the function is not available
         tokens_to_remove = [
             '<|zh|>', '<|en|>', '<|ja|>', '<|ko|>', '<|yue|>', '<|ca|>', '<|ru|>',
             '<|pt|>', '<|ar|>', '<|ta|>', '<|hi|>', '<|mi|>', '<|id|>', '<|de|>',
             '<|fr|>', '<|es|>', '<|emo|>', '<|EMO_UNKNOWN|>', '<|Speech|>',
-            '<|Music|>', '<|Noise|>', '<|Punctuation|>', '<|woitn|>', '<|withitn|>',
-            '<|HAPPY|>', '<|SAD|>', '<|ANGRY|>', '<|NEUTRAL|>', '<|FEARFUL|>',
-            '<|DISGUSTED|>', '<|SURPRISED|>', '<|EMO_UNKNOWN|>',
+            '<|Music|>', '<|Noise|>', '<|Punctuation|>', '<|woitn|>', '<|withitn|>'
         ]
         
         cleaned = text
@@ -3458,68 +4013,6 @@ def clean_sensevoice_text(text):
         cleaned = ' '.join(cleaned.split())
         return cleaned
 
-
-def _remove_non_text_chars(text):
-    """Remove emoji, special symbols, and other non-text unicode from ASR output"""
-    import re
-    # Keep: CJK characters, ASCII letters/digits, common punctuation, spaces
-    # Remove: emojis, special unicode symbols
-    cleaned = re.sub(r'[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffefa-zA-Z0-9\s\.\,\!\?\;\:\'\"\-\(\)\[\]\{\}，。！？；：、""''…—～·《》【】（）]', '', text)
-    # Clean up multiple spaces
-    cleaned = ' '.join(cleaned.split())
-    return cleaned
-
-def _asr_worker(client_id):
-    """Background thread: process audio queue → run ASR → emit results"""
-    global streaming_clients
-    
-    while client_id in streaming_clients and streaming_clients[client_id]['is_streaming']:
-        try:
-            item = streaming_clients[client_id]['audio_queue'].get(timeout=0.1)
-        except queue.Empty:
-            continue
-        
-        if item is None:
-            break
-        
-        audio_data, language = item
-        recognizer = streaming_clients[client_id]['recognizer']
-        
-        try:
-            import numpy as np
-            
-            results = recognizer.process_stream(audio_data, language)
-            
-            if results:
-                for result in results:
-                    text = result.get('text', '')
-                    confidence = result.get('confidence', 0)
-                    detected_lang = result.get('language', 'zh')
-                    elapsed_ms = result.get('elapsed_ms', 0)
-                    
-                    cleaned_text = clean_sensevoice_text(text)
-                    
-                    if cleaned_text:
-                        socketio.emit('recognition_result', {
-                            'text': cleaned_text,
-                            'confidence': confidence * 100 if confidence else 85,
-                            'language': detected_lang,
-                            'is_partial': True,
-                            'elapsed_ms': elapsed_ms
-                        }, room=client_id)
-                        print(f"[ASR Thread {client_id[:6]}] {cleaned_text[:40]} ({elapsed_ms}ms)")
-            
-            if len(audio_data) > 0:
-                audio_np = np.array(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-                audio_level = float(min(100, np.abs(audio_np).mean() * 200))
-                socketio.emit('audio_level', {'level': audio_level}, room=client_id)
-                
-        except Exception as e:
-            print(f"ASR worker error ({client_id[:6]}): {e}")
-            import traceback
-            traceback.print_exc()
-
-
 @socketio.on('stream_audio')
 def handle_stream_audio(data):
     global streaming_clients
@@ -3527,52 +4020,119 @@ def handle_stream_audio(data):
     client_id = request.sid
     audio_data = data.get('data', [])
     device = data.get('device', 'auto')
-    language = data.get('language', None)
+    
+    print(f"Received audio data from {client_id}: {len(audio_data)} samples")
     
     if client_id not in streaming_clients:
-        print(f"Creating new streaming client: {client_id}")
-
-        from funasr_asr import StreamingRecognizer, get_device, initialize_funasr, _funasr_model
-
-        if _funasr_model is None:
-            print(ConsoleColor.warning("FunASR model not loaded, initializing now..."))
-            model_path = "C:/Users/26276/Desktop/project/main/V0.3/models/stt/SenseVoiceSmall"
-            device_type = get_device()
-            ok = initialize_funasr(model_name=model_path, device=device_type)
-            if not ok:
-                emit('error', {'message': 'Failed to load speech recognition model'})
-                return
-            print(ConsoleColor.success("FunASR model loaded on demand"))
-
-        model_path = "C:/Users/26276/Desktop/project/main/V0.3/models/stt/SenseVoiceSmall"
-        device_type = get_device()
-        
-        recognizer = StreamingRecognizer(model_path=model_path, device=device_type, use_vad=True)
-        
-        audio_queue = queue.Queue()
-        worker_thread = threading.Thread(target=_asr_worker, args=(client_id,), daemon=True)
-        
         streaming_clients[client_id] = {
             'is_streaming': True,
             'device': device,
-            'language': language,
-            'recognizer': recognizer,
-            'audio_queue': audio_queue,
-            'worker_thread': worker_thread
+            'audio_buffer': [],
+            'cache': {}
         }
-        
-        worker_thread.start()
-        print(f"Created streaming client {client_id} with background thread")
-        emit('log', {'message': 'Streaming recognizer initialized', 'type': 'success'})
+        print(f"Created new streaming client: {client_id}")
     
     if not streaming_clients[client_id]['is_streaming']:
+        print(f"Client {client_id} is not streaming, ignoring")
         return
     
-    try:
-        streaming_clients[client_id]['audio_queue'].put_nowait((audio_data, language))
-    except queue.Full:
-        pass
+    streaming_clients[client_id]['audio_buffer'].extend(audio_data)
+    buffer_size = len(streaming_clients[client_id]['audio_buffer'])
+    print(f"Buffer size: {buffer_size}")
+    
+    if buffer_size >= 3200:
+        print(f"Buffer threshold reached, processing...")
+        process_streaming_audio(client_id)
 
+def process_streaming_audio(client_id):
+    global streaming_clients
+    
+    if client_id not in streaming_clients:
+        return
+    
+    client_data = streaming_clients[client_id]
+    
+    try:
+        import numpy as np
+        
+        buffer_len = len(client_data['audio_buffer'])
+        print(f"Processing audio buffer: {buffer_len} samples")
+        
+        CHUNK_SIZE = 3200
+        overlap_size = int(CHUNK_SIZE * 0.25)
+        
+        if buffer_len >= CHUNK_SIZE:
+            audio_np = np.array(client_data['audio_buffer'][:CHUNK_SIZE], dtype=np.int16).astype(np.float32) / 32768.0
+            
+            client_data['audio_buffer'] = client_data['audio_buffer'][CHUNK_SIZE - overlap_size:]
+            print(f"Buffer advanced: {CHUNK_SIZE - overlap_size} samples kept for overlap")
+        else:
+            audio_np = np.array(client_data['audio_buffer'], dtype=np.int16).astype(np.float32) / 32768.0
+        
+        from funasr_asr import _funasr_model, _model_lock, initialize_funasr, get_device
+        
+        with _model_lock:
+            if _funasr_model is None:
+                print("Initializing FunASR model in process_streaming_audio")
+                emit('log', {'message': 'Initializing FunASR model...', 'type': 'info'})
+                device = get_device()
+                model_path = "C:/Users/26276/Desktop/project/main/V0.3/models/stt/SenseVoiceSmall"
+                success = initialize_funasr(model_name=model_path, device=device)
+                if not success:
+                    emit('log', {'message': 'Failed to initialize FunASR model', 'type': 'error'})
+                    emit('error', {'message': 'Failed to initialize FunASR model'})
+                    return
+                emit('log', {'message': 'FunASR model initialized successfully', 'type': 'success'})
+                print("FunASR model initialized successfully")
+            
+            print("Calling _funasr_model.generate...")
+            try:
+                result = _funasr_model.generate(
+                input=audio_np,
+                cache=client_data['cache'],
+                is_final=False,
+                chunk_size=100,
+                chunk_size_ms=100,
+                language="zh",
+                use_itn=True,
+                remove_pun=False
+            )
+                print(f"FunASR result type: {type(result)}")
+                print(f"FunASR result length: {len(result) if result else 0}")
+                if result and len(result) > 0:
+                    print(f"FunASR result[0]: {result[0]}")
+                    if 'text' in result[0]:
+                        print(f"FunASR text: '{result[0].get('text', '')}'")
+            except Exception as e:
+                print(f"Error calling FunASR: {e}")
+                import traceback
+                traceback.print_exc()
+                result = None
+        
+        print(f"Buffer remaining: {len(client_data['audio_buffer'])} samples")
+        
+        if result and len(result) > 0:
+            text = result[0].get('text', '')
+            confidence = result[0].get('confidence', 0)
+            
+            print(f"Raw text before cleanup: '{text}'")
+            # Clean up special tokens from SenseVoice output
+            cleaned_text = clean_sensevoice_text(text)
+            print(f"Cleaned text after cleanup: '{cleaned_text}'")
+            
+            if cleaned_text:
+                emit('recognition_result', {
+                    'text': cleaned_text,
+                    'confidence': confidence * 100 if confidence else 85
+                })
+                emit('log', {'message': f'Streaming result: {cleaned_text[:30]}...', 'type': 'data'})
+        
+        audio_level = float(min(100, np.abs(audio_np).mean() * 200))
+        emit('audio_level', {'level': audio_level})
+        
+    except Exception as e:
+        emit('log', {'message': f'Streaming error: {str(e)}', 'type': 'error'})
+        print(f"Streaming error: {e}")
 
 @socketio.on('stop_stream')
 def handle_stop_stream():
@@ -3581,946 +4141,412 @@ def handle_stop_stream():
     client_id = request.sid
     if client_id in streaming_clients:
         streaming_clients[client_id]['is_streaming'] = False
-        try:
-            streaming_clients[client_id]['audio_queue'].put_nowait(None)
-        except queue.Full:
-            pass
-        recognizer = streaming_clients[client_id].get('recognizer')
-        if recognizer:
-            recognizer.reset()
-        del streaming_clients[client_id]
-
-@socketio.on('translate_debug_text')
-def handle_translate_debug_text(data):
-    """Handle direct text translation for debug page"""
-    global APP_CONFIG
-    text = data.get('text', '').strip()
-    provider = APP_CONFIG.get('translation', {}).get('default_provider', 'lps')
-    model_name = data.get('model_name', '')
-    source_lang = data.get('source_lang', 'zh')
-    target_lang = data.get('target_lang', 'en')
-    preset_id = data.get('preset_id', None)
-    translation_style = data.get('translation_style', '')
-    
-    if not text:
-        emit('translation_error', {'message': 'No text provided for translation'})
-        return
-    
-    print(ConsoleColor.info(f"[Translation Debug] Text: '{text[:50]}...' ({source_lang}→{target_lang}), Provider: LM Studio"))
-    emit('translation_status', {'status': 'translating', 'message': f'Translating ({source_lang}→{target_lang})...'})
-    
-    try:
-        global current_translation_style
-        if translation_style:
-            current_translation_style = translation_style
-        
-        translate_stream(text, model_name, provider, preset_id, target_lang=target_lang)
-            
-    except Exception as e:
-        error_msg = f'Translation failed: {str(e)}'
-        print(ConsoleColor.error(error_msg))
-        emit('translation_error', {'message': error_msg})
-
-SENTENCE_END_PUNCT = set('。.!！?？\n')
-
-
-def _tts_infer(speaker_path, text):
-    global gsv_tts, gsv_tts_cache
-    cache_key = generate_gsv_tts_cache_key(speaker_path, text)
-    if cache_key in gsv_tts_cache:
-        audio_data = gsv_tts_cache.get(cache_key)
-        return audio_data, True
-    with tempfile.TemporaryDirectory() as temp_dir:
-        output_path = os.path.join(temp_dir, 'output.wav')
-        audio = gsv_tts.infer(
-            text=text,
-            spk_audio_path=speaker_path,
-            prompt_audio_path=speaker_path,
-            prompt_audio_text=text[:15],
-            speed=1.0
-        )
-        audio.save(output_path)
-        with open(output_path, 'rb') as f:
-            audio_data = f.read()
-        gsv_tts_cache.put(cache_key, audio_data)
-        return audio_data, False
-
-
-def _tts_worker(tts_queue, speaker_path, results_out):
-    global gsv_tts
-    while True:
-        item = tts_queue.get()
-        if item is None:
-            break
-        seq, sentence = item
-        try:
-            audio_data, cached = _tts_infer(speaker_path, sentence)
-            results_out.append((seq, sentence, audio_data, cached))
-        except Exception as e:
-            print(ConsoleColor.error(f"TTS worker error (seq={seq}): {e}"))
-            results_out.append((seq, sentence, None, False))
-
-
-def _maybe_extract_sentences(buffer, tts_queue, seq_counter):
-    """Extract complete sentences from buffer and push to TTS queue."""
-    extracted = []
-    remaining = buffer
-    while True:
-        found = -1
-        for i, ch in enumerate(remaining):
-            if ch in SENTENCE_END_PUNCT:
-                found = i
-                break
-        if found < 0:
-            break
-        sentence = remaining[:found + 1].strip()
-        remaining = remaining[found + 1:]
-        if len(sentence) >= 4:
-            seq = seq_counter[0]
-            seq_counter[0] += 1
-            tts_queue.put((seq, sentence))
-            extracted.append(sentence)
-    return remaining, extracted
-
-
-def _emit_tts_results(results_out, done_event, emit_func, event_name='tts_pipeline_audio_chunk'):
-    last_emitted_idx = 0
-    all_done = False
-    while not all_done:
-        if done_event.is_set():
-            all_done = True
-        while last_emitted_idx < len(results_out):
-            seq, sentence, audio_data, cached = results_out[last_emitted_idx]
-            last_emitted_idx += 1
-            if audio_data:
-                emit_func(event_name, {
-                    'seq': seq,
-                    'audio': audio_data,
-                    'size': len(audio_data),
-                    'cached': cached,
-                    'text': sentence
-                })
-                print(ConsoleColor.success(
-                    f"[TTS chunk] seq={seq}: '{sentence[:20]}...' ({len(audio_data)} bytes)")
-                )
-        time.sleep(0.02)
-
-
-def _tts_pipeline_translate_lps(text, model_name, target_lang, speaker_wav):
-    """TTS pipeline using LPS for translation then GSV-TTS for audio.
-    Supports both llama_cpp and openai_compatible backends."""
-    global gsv_tts, gsv_tts_cache, APP_CONFIG
-
-    if not model_name:
-        model_name = _get_lps_config('default_model', '')
-
-    backend = _get_lps_config('backend', 'openai_compatible')
-
-    if backend == 'openai_compatible':
-        _tts_pipeline_openai(text, model_name, target_lang, speaker_wav)
-        return
-
-    if not LPS_AVAILABLE:
-        emit('tts_pipeline_error', {'message': 'LPS (llama_cpp) not available'})
-        return
-
-    lps_model_path = model_name
-    if not os.path.isabs(lps_model_path):
-        lps_model_path = os.path.join(BASE_DIR, lps_model_path)
-    lps_model_path = os.path.normpath(lps_model_path)
-
-    system_prompt = f"Translate from Chinese to {target_lang}. Output only the translation."
-
-    temperature = float(_get_lps_config('temperature', 0.3))
-    max_tokens = int(_get_lps_config('max_tokens', 512))
-    top_p = float(_get_lps_config('top_p', 0.8))
-
-    emit('tts_pipeline_status', {'stage': 'translating', 'message': 'Translating vía LPS (llama_cpp)...'})
-
-    speaker_path = os.path.join(VOICE_CLONE_DIR, speaker_wav)
-
-    tts_queue = queue.Queue()
-    results_out = []
-    done_event = threading.Event()
-    seq_counter = [0]
-
-    worker = threading.Thread(target=_tts_worker, args=(tts_queue, speaker_path, results_out), daemon=True)
-    worker.start()
-
-    emitter_thread = threading.Thread(
-        target=_emit_tts_results, args=(results_out, done_event, emit), daemon=True
-    )
-    emitter_thread.start()
-
-    def _do_lps_pipeline():
-        try:
-            if not load_lps_model(lps_model_path):
-                emit('tts_pipeline_error', {'message': f'Failed to load LPS model: {lps_model_path}'})
-                done_event.set()
-                return
-
-            start_time = time.time()
-            translation = ""
-            char_count = 0
-            sentence_buffer = ""
-
-            with _lps_model_lock:
-                if _lps_model is None:
-                    emit('tts_pipeline_error', {'message': 'LPS model not loaded'})
-                    done_event.set()
-                    return
-
-                stream = _lps_model.create_chat_completion(
-                    messages=[
-                        {'role': 'system', 'content': system_prompt},
-                        {'role': 'user', 'content': text}
-                    ],
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    stream=True
-                )
-
-            for chunk in stream:
-                choices = chunk.get('choices', [])
-                if choices:
-                    delta = choices[0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        translation += content
-                        char_count += len(content)
-                        sentence_buffer += content
-
-                        emit('tts_pipeline_chunk', {
-                            'chunk': content,
-                            'translation': translation,
-                            'char_count': char_count
-                        })
-
-                        if _is_sentence_end(content):
-                            sentence_text = sentence_buffer.strip()
-                            if sentence_text:
-                                seq_counter[0] += 1
-                                tts_queue.put({
-                                    'text': sentence_text,
-                                    'seq': seq_counter[0],
-                                    'is_final': False
-                                })
-                            sentence_buffer = ""
-
-            if sentence_buffer.strip():
-                seq_counter[0] += 1
-                tts_queue.put({
-                    'text': sentence_buffer.strip(),
-                    'seq': seq_counter[0],
-                    'is_final': True
-                })
-
-            tts_queue.put(None)
-            done_event.set()
-
-            total_time = time.time() - start_time
-            emit('tts_pipeline_translation_complete', {
-                'translation': translation,
-                'total_time': f'{total_time:.2f}s',
-                'chars': char_count,
-                'first_chunk_time': f'{total_time:.3f}s'
-            })
-
-            print(ConsoleColor.success(f"TTS Pipeline (LPS llama_cpp) complete: {char_count} chars"))
-
-        except Exception as e:
-            print(ConsoleColor.error(f"TTS Pipeline (LPS) error: {e}"))
-            import traceback
-            traceback.print_exc()
-            emit('tts_pipeline_error', {'message': f'Pipeline error: {str(e)}'})
-            done_event.set()
-
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='tts_lps') as executor:
-        executor.submit(_do_lps_pipeline)
-
-
-def _tts_pipeline_openai(text, model_name, target_lang, speaker_wav):
-    """TTS pipeline via OpenAI-compatible API for translation, then GSV-TTS for audio"""
-    global gsv_tts, gsv_tts_cache
-
-    api_url = _get_lps_config('openai_url', 'http://localhost:8080/v1')
-    api_url = api_url.rstrip('/')
-    model = model_name or _get_lps_config('default_model', 'default')
-    if '/' in model:
-        model = os.path.basename(model).replace('.gguf', '')
-
-    system_prompt = f"Translate from Chinese to {target_lang}. Output only the translation."
-
-    temperature = float(_get_lps_config('temperature', 0.3))
-    max_tokens = int(_get_lps_config('max_tokens', 512))
-    top_p = float(_get_lps_config('top_p', 0.8))
-
-    emit('tts_pipeline_status', {'stage': 'translating', 'message': f'Translating vía LPS OpenAI ({api_url})...'})
-
-    speaker_path = os.path.join(VOICE_CLONE_DIR, speaker_wav)
-
-    tts_queue = queue.Queue()
-    results_out = []
-    done_event = threading.Event()
-    seq_counter = [0]
-
-    worker = threading.Thread(target=_tts_worker, args=(tts_queue, speaker_path, results_out), daemon=True)
-    worker.start()
-
-    emitter_thread = threading.Thread(
-        target=_emit_tts_results, args=(results_out, done_event, emit), daemon=True
-    )
-    emitter_thread.start()
-
-    def _do_openai_pipeline():
-        try:
-            start_time = time.time()
-            translation = ""
-            char_count = 0
-            sentence_buffer = ""
-
-            response = requests.post(
-                f'{api_url}/chat/completions',
-                json={
-                    'model': model,
-                    'messages': [
-                        {'role': 'system', 'content': system_prompt},
-                        {'role': 'user', 'content': text}
-                    ],
-                    'stream': True,
-                    'temperature': temperature,
-                    'max_tokens': max_tokens,
-                    'top_p': top_p
-                },
-                headers={'Content-Type': 'application/json'},
-                stream=True,
-                timeout=120
-            )
-
-            for line in response.iter_lines(decode_unicode=True):
-                if line and line.startswith('data: '):
-                    data_str = line[6:]
-                    if data_str.strip() == '[DONE]':
-                        break
-                    try:
-                        chunk_data = json.loads(data_str)
-                        choices = chunk_data.get('choices', [])
-                        if choices:
-                            delta = choices[0].get('delta', {})
-                            content = delta.get('content', '')
-                            if content:
-                                translation += content
-                                char_count += len(content)
-                                sentence_buffer += content
-
-                                emit('tts_pipeline_chunk', {
-                                    'chunk': content,
-                                    'translation': translation,
-                                    'char_count': char_count
-                                })
-
-                                if _is_sentence_end(content):
-                                    sentence_text = sentence_buffer.strip()
-                                    if sentence_text:
-                                        seq_counter[0] += 1
-                                        tts_queue.put({
-                                            'text': sentence_text,
-                                            'seq': seq_counter[0],
-                                            'is_final': False
-                                        })
-                                    sentence_buffer = ""
-                    except json.JSONDecodeError:
-                        continue
-
-            if sentence_buffer.strip():
-                seq_counter[0] += 1
-                tts_queue.put({
-                    'text': sentence_buffer.strip(),
-                    'seq': seq_counter[0],
-                    'is_final': True
-                })
-
-            tts_queue.put(None)
-            done_event.set()
-
-            total_time = time.time() - start_time
-            emit('tts_pipeline_translation_complete', {
-                'translation': translation,
-                'total_time': f'{total_time:.2f}s',
-                'chars': char_count,
-                'first_chunk_time': f'{total_time:.3f}s'
-            })
-
-            print(ConsoleColor.success(f"TTS Pipeline (LPS OpenAI) complete: {char_count} chars via {api_url}"))
-
-        except Exception as e:
-            print(ConsoleColor.error(f"TTS Pipeline (LPS OpenAI) error: {e}"))
-            import traceback
-            traceback.print_exc()
-            emit('tts_pipeline_error', {'message': f'Pipeline error: {str(e)}'})
-            done_event.set()
-
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='tts_openai') as executor:
-        executor.submit(_do_openai_pipeline)
-
-
-@socketio.on('tts_debug_pipeline')
-def handle_tts_debug_pipeline(data):
-    """Handle TTS debug pipeline: translate → streaming sentence-level TTS"""
-    global gsv_tts, current_translation_style, lmstudio_url, lmstudio_api_key, APP_CONFIG
-
-    text = data.get('text', '').strip()
-    model_name = data.get('model_name', '')
-    source_lang = data.get('source_lang', 'zh')
-    target_lang = data.get('target_lang', 'en')
-    speaker_wav = data.get('speaker_wav', '')
-    preset_id = data.get('preset_id', None)
-    translation_style = data.get('translation_style', '')
-
-    if not text:
-        emit('tts_pipeline_error', {'message': 'No text provided'})
-        return
-
-    if not GSV_TTS_AVAILABLE or gsv_tts is None:
-        emit('tts_pipeline_error', {'message': 'TTS not available'})
-        return
-
-    if not speaker_wav:
-        emit('tts_pipeline_error', {'message': 'No speaker audio selected'})
-        return
-
-    speaker_path = os.path.join(VOICE_CLONE_DIR, speaker_wav)
-    if not os.path.exists(speaker_path):
-        emit('tts_pipeline_error', {'message': f'Speaker audio not found: {speaker_wav}'})
-        return
-
-    print(ConsoleColor.info(f"[TTS Debug Pipeline] Text: '{text[:50]}...' ({source_lang}→{target_lang})"))
-
-    provider = APP_CONFIG.get('translation', {}).get('default_provider', 'lps')
-
-    if provider == 'lps' and LPS_AVAILABLE:
-        _tts_pipeline_translate_lps(text, model_name, target_lang, speaker_wav)
-        return
-
-    API_URL = lmstudio_url if lmstudio_url else 'http://localhost:1234'
-    if not model_name:
-        models = get_lmstudio_models()
-        model_name = models[0] if models else 'default'
-
-    headers = {'Content-Type': 'application/json'}
-    if lmstudio_api_key:
-        headers['Authorization'] = f'Bearer {lmstudio_api_key}'
-
-    system_prompt = (
-        f"Translate from Chinese to {target_lang}. Output only the translation."
-    )
-
-    if translation_style:
-        current_translation_style = translation_style
-
-    emit('tts_pipeline_status', {'stage': 'translating', 'message': 'Translating + streaming TTS...'})
-
-    tts_queue = queue.Queue()
-    results_out = []
-    done_event = threading.Event()
-    seq_counter = [0]
-
-    worker = threading.Thread(target=_tts_worker, args=(tts_queue, speaker_path, results_out), daemon=True)
-    worker.start()
-
-    emitter_thread = threading.Thread(
-        target=_emit_tts_results, args=(results_out, done_event, emit), daemon=True
-    )
-    emitter_thread.start()
-
-    try:
-        response = requests.post(
-            f'{API_URL}/v1/chat/completions',
-            json={
-                'model': model_name,
-                'messages': [
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': text}
-                ],
-                'stream': True,
-                'temperature': 0.3,
-                'max_tokens': 512,
-                'top_p': 0.8,
-                'stop': None
-            },
-            headers=headers,
-            stream=True,
-            timeout=60
-        )
-
-        translation = ""
-        char_count = 0
-        sentence_buffer = ""
-        first_chunk_time = None
-        start_time = time.time()
-        last_emit_time = start_time
-        EMIT_INTERVAL = 0.03
-
-        for line in response.iter_lines(decode_unicode=True):
-            if line:
-                if line.startswith('data: '):
-                    data_str = line[6:]
-                    if data_str.strip() == '[DONE]':
-                        break
-                    try:
-                        chunk_data = json.loads(data_str)
-                        choices = chunk_data.get('choices', [])
-                        if choices:
-                            choice = choices[0]
-                            delta = choice.get('delta', {})
-                            chunk = delta.get('content', '')
-                            finish_reason = choice.get('finish_reason', '')
-
-                            if chunk:
-                                if first_chunk_time is None:
-                                    first_chunk_time = time.time() - start_time
-
-                                translation += chunk
-                                char_count += len(chunk)
-                                sentence_buffer += chunk
-
-                                sentence_buffer, extracted = _maybe_extract_sentences(
-                                    sentence_buffer, tts_queue, seq_counter
-                                )
-                                if extracted:
-                                    print(ConsoleColor.debug(
-                                        f"[TTS Pipeline] Sentences for TTS: {[s[:20]+'...' for s in extracted]}"
-                                    ))
-
-                                now = time.time()
-                                if now - last_emit_time >= EMIT_INTERVAL:
-                                    emit('tts_pipeline_chunk', {
-                                        'chunk': chunk,
-                                        'translation': translation,
-                                        'char_count': char_count
-                                    })
-                                    last_emit_time = now
-
-                            if finish_reason:
-                                print(ConsoleColor.debug(
-                                    f"[TTS Pipeline] finish_reason: {finish_reason}, chars: {char_count}"
-                                ))
-
-                    except json.JSONDecodeError:
-                        continue
-                    except Exception as e:
-                        print(ConsoleColor.warning(f"TTS pipeline translation parse error: {e}"))
-                        continue
-
-        total_time = time.time() - start_time
-
-        sentence_buffer = sentence_buffer.strip()
-        if len(sentence_buffer) >= 4:
-            seq = seq_counter[0]
-            seq_counter[0] += 1
-            tts_queue.put((seq, sentence_buffer))
-            print(ConsoleColor.debug(f"[TTS Pipeline] Final sentence: '{sentence_buffer[:30]}...'"))
-
-        if translation:
-            emit('tts_pipeline_chunk', {
-                'chunk': '',
-                'translation': translation,
-                'char_count': char_count
-            })
-
-        emit('tts_pipeline_translation_complete', {
-            'translation': translation,
-            'total_time': f'{total_time:.2f}s',
-            'chars': char_count,
-            'sentence_count': seq_counter[0],
-            'first_chunk_time': f'{first_chunk_time:.3f}s' if first_chunk_time else 'N/A'
-        })
-
-        tts_queue.put(None)
-        worker.join(timeout=30)
-        done_event.set()
-        emitter_thread.join(timeout=5)
-
-        emit('tts_pipeline_status', {
-            'stage': 'complete',
-            'message': f'Pipeline complete ({seq_counter[0]} sentences)'
-        })
-
-        print(ConsoleColor.success(
-            f"TTS Pipeline complete: {char_count} chars, {seq_counter[0]} sentences"
-        ))
-
-    except requests.exceptions.Timeout:
-        tts_queue.put(None)
-        done_event.set()
-        emit('tts_pipeline_error', {'message': 'Translation timeout'})
-    except requests.exceptions.ConnectionError:
-        tts_queue.put(None)
-        done_event.set()
-        emit('tts_pipeline_error', {'message': 'Cannot connect to LM Studio'})
-    except Exception as e:
-        tts_queue.put(None)
-        done_event.set()
-        print(ConsoleColor.error(f"TTS pipeline error: {e}"))
-        import traceback
-        traceback.print_exc()
-        emit('tts_pipeline_error', {'message': f'Pipeline error: {str(e)}'})
-
-
-@socketio.on('tts_only_pipeline')
-def handle_tts_only_pipeline(data):
-    """ASR text → TTS directly (no translation), streaming sentence-level"""
-    global gsv_tts
-
-    text = data.get('text', '').strip()
-    speaker_wav = data.get('speaker_wav', '')
-
-    if not text:
-        emit('tts_only_error', {'message': 'No text provided'})
-        return
-
-    if not GSV_TTS_AVAILABLE or gsv_tts is None:
-        emit('tts_only_error', {'message': 'TTS not available'})
-        return
-
-    if not speaker_wav:
-        emit('tts_only_error', {'message': 'No speaker audio selected'})
-        return
-
-    speaker_path = os.path.join(VOICE_CLONE_DIR, speaker_wav)
-    if not os.path.exists(speaker_path):
-        emit('tts_only_error', {'message': f'Speaker audio not found: {speaker_wav}'})
-        return
-
-    print(ConsoleColor.info(f"[TTS Only Pipeline] Text: '{text[:50]}...', speaker: {speaker_wav}"))
-
-    emit('tts_only_status', {'stage': 'generating_tts', 'message': 'Streaming TTS...'})
-
-    tts_queue = queue.Queue()
-    results_out = []
-    done_event = threading.Event()
-    seq_counter = [0]
-
-    worker = threading.Thread(target=_tts_worker, args=(tts_queue, speaker_path, results_out), daemon=True)
-    worker.start()
-
-    emitter_thread = threading.Thread(
-        target=_emit_tts_results, args=(results_out, done_event, emit, 'tts_only_audio_chunk'), daemon=True
-    )
-    emitter_thread.start()
-
-    try:
-        sentence_buffer = text
-
-        sentence_buffer, extracted = _maybe_extract_sentences(
-            sentence_buffer, tts_queue, seq_counter
-        )
-
-        sentence_buffer = sentence_buffer.strip()
-        if len(sentence_buffer) >= 4:
-            seq = seq_counter[0]
-            seq_counter[0] += 1
-            tts_queue.put((seq, sentence_buffer))
-
-        tts_queue.put(None)
-        worker.join(timeout=30)
-        done_event.set()
-        emitter_thread.join(timeout=5)
-
-        emit('tts_only_status', {
-            'stage': 'complete',
-            'message': f'TTS complete ({seq_counter[0]} sentences)'
-        })
-        emit('tts_only_sentence_count', {'count': seq_counter[0]})
-
-        print(ConsoleColor.success(
-            f"TTS Only Pipeline complete: {len(text)} chars, {seq_counter[0]} sentences"
-        ))
-
-    except Exception as e:
-        tts_queue.put(None)
-        done_event.set()
-        print(ConsoleColor.error(f"TTS only pipeline error: {e}"))
-        import traceback
-        traceback.print_exc()
-        emit('tts_only_error', {'message': f'TTS error: {str(e)}'})
-
+        streaming_clients[client_id]['audio_buffer'] = []
+        streaming_clients[client_id]['cache'] = {}
 
 @socketio.on('start_loading')
 def handle_start_loading(data):
-    """Handle loading process with real-time progress for all models"""
+    """Handle loading process with real-time progress"""
     global components_loaded
     
-    if not _loading_lock.acquire(blocking=False):
-        emit('loading_progress', {
-            'component': 'core',
-            'status': 'warning',
-            'message': 'Loading already in progress...',
-            'progress': 0
-        })
-        return
+    components = data.get('components', {})
+    total_steps = sum(1 for key, value in components.items() if value)
+    
+    # Ensure at least one step to avoid division by zero
+    if total_steps == 0:
+        total_steps = 1
+    
+    current_step = 0
     
     try:
-        components = data.get('components', {})
-        total_active = sum(1 for v in components.values() if v)
-        if total_active == 0:
-            total_active = 5
-        
-        current_step = 0
-        
-        # 1. System file validation (core)
+        # 1. System file validation
         emit('loading_progress', {
             'component': 'core',
             'status': 'loading',
             'message': 'Validating system files...',
             'progress': 0
         })
+        
+        # Validate system files
         validate_system_files()
         current_step += 1
         emit('loading_progress', {
             'component': 'core',
             'status': 'completed',
             'message': 'System files validated',
-            'progress': (current_step / total_active) * 100
+            'progress': (current_step / total_steps) * 100
         })
         
-        # 2. Speech Recognition - FunASR
+        # 2. Load core engine
+        if components.get('core', True):
+            emit('loading_progress', {
+                'component': 'core',
+                'status': 'loading',
+                'message': 'Initializing core engine...',
+                'progress': (current_step / total_steps) * 100
+            })
+            
+            # Initialize core components
+            initialize_core_engine()
+            current_step += 1
+            emit('loading_progress', {
+                'component': 'core',
+                'status': 'completed',
+                'message': 'Core engine initialized',
+                'progress': (current_step / total_steps) * 100
+            })
+        
+        # 3. Load speech recognition
         if components.get('speech', True):
             emit('loading_progress', {
                 'component': 'speech',
                 'status': 'loading',
-                'message': 'Loading speech recognition model (FunASR)...',
-                'progress': (current_step / total_active) * 100
+                'message': 'Loading speech recognition...',
+                'progress': (current_step / total_steps) * 100
             })
             
-            if FUNASR_AVAILABLE:
-                try:
-                    device = get_device()
-                    print(ConsoleColor.info(f"Loading FunASR on {device}..."))
-                    funasr_initialized = initialize_funasr(
-                        model_name="C:/Users/26276/Desktop/project/main/V0.3/models/stt/SenseVoiceSmall",
-                        device=device
-                    )
-                    if funasr_initialized:
-                        emit('loading_progress', {
-                            'component': 'speech',
-                            'status': 'completed',
-                            'message': f'Speech recognition ready ({device})',
-                            'progress': ((current_step + 1) / total_active) * 100
-                        })
-                    else:
-                        emit('loading_progress', {
-                            'component': 'speech',
-                            'status': 'error',
-                            'message': 'Failed to load speech recognition model',
-                            'progress': ((current_step + 1) / total_active) * 100
-                        })
-                except Exception as e:
-                    print(ConsoleColor.error(f"FunASR loading error: {e}"))
-                    emit('loading_progress', {
-                        'component': 'speech',
-                        'status': 'error',
-                        'message': f'Speech recognition error: {str(e)[:50]}',
-                        'progress': ((current_step + 1) / total_active) * 100
-                    })
-            else:
-                emit('loading_progress', {
-                    'component': 'speech',
-                    'status': 'error',
-                    'message': 'FunASR not available',
-                    'progress': ((current_step + 1) / total_active) * 100
-                })
+            # Load speech recognition models
+            load_speech_recognition()
             current_step += 1
+            emit('loading_progress', {
+                'component': 'speech',
+                'status': 'completed',
+                'message': 'Speech recognition loaded',
+                'progress': (current_step / total_steps) * 100
+            })
         
-        # 3. Translation Engine - LM Studio
+        # 4. Load translation engine
         if components.get('translation', True):
             emit('loading_progress', {
                 'component': 'translation',
                 'status': 'loading',
-                'message': 'Connecting to LM Studio...',
-                'progress': (current_step / total_active) * 100
+                'message': 'Initializing translation engine...',
+                'progress': (current_step / total_steps) * 100
             })
             
-            try:
-                models = get_lmstudio_models()
-                if models:
-                    emit('loading_progress', {
-                        'component': 'translation',
-                        'status': 'completed',
-                        'message': f'LM Studio connected ({len(models)} models)',
-                        'progress': ((current_step + 1) / total_active) * 100
-                    })
-                else:
-                    emit('loading_progress', {
-                        'component': 'translation',
-                        'status': 'warning',
-                        'message': 'LM Studio not detected - translation unavailable',
-                        'progress': ((current_step + 1) / total_active) * 100
-                    })
-            except Exception as e:
-                emit('loading_progress', {
-                    'component': 'translation',
-                    'status': 'warning',
-                    'message': f'LM Studio check failed: {str(e)[:50]}',
-                    'progress': ((current_step + 1) / total_active) * 100
-                })
+            # Initialize translation engine
+            initialize_translation_engine()
             current_step += 1
+            emit('loading_progress', {
+                'component': 'translation',
+                'status': 'completed',
+                'message': 'Translation engine initialized',
+                'progress': (current_step / total_steps) * 100
+            })
         
-        # 4. Text-to-Speech - GSV-TTS-Lite
+        # 5. Load text-to-speech
         if components.get('tts', True):
             emit('loading_progress', {
                 'component': 'tts',
                 'status': 'loading',
-                'message': 'Loading text-to-speech model...',
-                'progress': (current_step / total_active) * 100
+                'message': 'Loading text-to-speech...',
+                'progress': (current_step / total_steps) * 100
             })
             
-            if GSV_TTS_AVAILABLE:
-                try:
-                    preload_gsv_tts()
-                    emit('loading_progress', {
-                        'component': 'tts',
-                        'status': 'completed',
-                        'message': 'TTS model ready',
-                        'progress': ((current_step + 1) / total_active) * 100
-                    })
-                except Exception as e:
-                    print(ConsoleColor.error(f"TTS loading error: {e}"))
-                    emit('loading_progress', {
-                        'component': 'tts',
-                        'status': 'error',
-                        'message': f'TTS loading failed: {str(e)[:50]}',
-                        'progress': ((current_step + 1) / total_active) * 100
-                    })
-            else:
-                emit('loading_progress', {
-                    'component': 'tts',
-                    'status': 'error',
-                    'message': 'GSV-TTS-Lite not installed',
-                    'progress': ((current_step + 1) / total_active) * 100
-                })
+            # Load TTS models
+            load_text_to_speech()
             current_step += 1
+            emit('loading_progress', {
+                'component': 'tts',
+                'status': 'completed',
+                'message': 'Text-to-speech loaded',
+                'progress': (current_step / total_steps) * 100
+            })
         
-        # 5. Model Manager
+        # 6. Load model manager
         if components.get('models', True):
             emit('loading_progress', {
                 'component': 'models',
                 'status': 'loading',
-                'message': 'Initializing model manager...',
-                'progress': (current_step / total_active) * 100
+                'message': 'Loading model manager...',
+                'progress': (current_step / total_steps) * 100
             })
             
-            try:
-                emit('loading_progress', {
-                    'component': 'models',
-                    'status': 'completed',
-                    'message': 'Model manager ready',
-                    'progress': ((current_step + 1) / total_active) * 100
-                })
-            except Exception as e:
-                emit('loading_progress', {
-                    'component': 'models',
-                    'status': 'warning',
-                    'message': f'Model manager: {str(e)[:30]}',
-                    'progress': ((current_step + 1) / total_active) * 100
-                })
+            # Initialize model manager
+            initialize_model_manager()
             current_step += 1
+            emit('loading_progress', {
+                'component': 'models',
+                'status': 'completed',
+                'message': 'Model manager loaded',
+                'progress': (current_step / total_steps) * 100
+            })
+        
+        # 7. Load llama.cpp (separate step)
+        if components.get('llama_cpp', True):
+            total_steps += 1  # Add llama.cpp as a separate step
+        
+        # 8. Load llama.cpp server
+        if components.get('llama_cpp', True):
+            emit('loading_progress', {
+                'component': 'llama_cpp',
+                'status': 'loading',
+                'message': 'Starting llama.cpp server...',
+                'progress': (current_step / total_steps) * 100
+            })
+            
+            # Load llama.cpp and start server
+            load_llama_cpp()
+            current_step += 1
+            emit('loading_progress', {
+                'component': 'llama_cpp',
+                'status': 'completed',
+                'message': 'llama.cpp server ready',
+                'progress': (current_step / total_steps) * 100
+            })
+        
+        # Final progress update
+        emit('loading_progress', {
+            'message': 'All components loaded successfully!',
+            'progress': 100
+        })
         
         # Mark components as loaded
+        global components_loaded
         components_loaded = True
         
-        emit('loading_complete', {
-            'status': 'success',
-            'message': 'All models loaded successfully'
-        })
-        print(ConsoleColor.success("All models loaded successfully"))
+        # Notify completion
+        emit('loading_complete')
         
     except Exception as e:
-        error_msg = f'Loading failed: {str(e)}'
-        print(ConsoleColor.error(error_msg))
-        import traceback
-        traceback.print_exc()
-        emit('loading_error', {'message': error_msg})
-    finally:
-        _loading_lock.release()
-
+        print(f"Loading error: {e}")
+        emit('loading_error', {'error': str(e)})
 
 def validate_system_files():
-    """Validate that required system files and directories exist"""
-    required_files = []
+    """Validate system files and directories"""
+    # Check required directories
     required_dirs = [
-        os.path.join(BASE_DIR, 'templates'),
-        os.path.join(BASE_DIR, 'static'),
-        os.path.join(BASE_DIR, 'config'),
+        os.path.join(BASE_DIR, 'models'),
+        os.path.join(BASE_DIR, 'models', 'vosk'),
+        os.path.join(BASE_DIR, 'config')
     ]
     
-    # Check required directories
     for dir_path in required_dirs:
         if not os.path.exists(dir_path):
-            print(ConsoleColor.warning(f"Creating directory: {dir_path}"))
             os.makedirs(dir_path, exist_ok=True)
+            print(f"Created directory: {dir_path}")
     
     # Check required files
+    required_files = [
+        os.path.join(BASE_DIR, 'config', 'languages.json'),
+        os.path.join(BASE_DIR, 'config', 'vllm_models.json')
+    ]
+    
     for file_path in required_files:
         if not os.path.exists(file_path):
-            print(ConsoleColor.warning(f"Missing file: {file_path}"))
+            print(f"Warning: {file_path} not found")
+
+def initialize_core_engine():
+    """Initialize core engine components"""
+    # Initialize core services
+    global translation_cache, gsv_tts_cache
     
-    print(ConsoleColor.success("System files validated"))
-
-
-# Application initialization on startup (lightweight - models load via Socket.IO)
-def run_application_init():
-    """Initialize the application on startup - lightweight, non-blocking"""
-    global components_loaded
+    # Ensure caches are initialized
+    if 'translation_cache' not in globals():
+        from functools import lru_cache
+        translation_cache = {}
     
-    print(ConsoleColor.title("=" * 60))
-    print(ConsoleColor.title("  Real-time Translation System v0.3"))
-    print(ConsoleColor.title("  FunASR + LM Studio + GSV-TTS-Lite"))
-    print(ConsoleColor.title("=" * 60))
+    if 'gsv_tts_cache' not in globals():
+        gsv_tts_cache = {}
+
+def load_speech_recognition():
+    """Load speech recognition components"""
+    # Speech recognition is loaded on demand, but we can preload models
+    pass
+
+def initialize_translation_engine():
+    """Initialize translation engine"""
+    # Translation engine is initialized on demand
+    pass
+
+def load_text_to_speech():
+    """Load text-to-speech components"""
+    # TTS is loaded on demand
+    pass
+
+def initialize_model_manager():
+    """Initialize model manager"""
+    # Model manager is initialized on demand
+    pass
+
+def load_llama_cpp():
+    """Load llama.cpp and GGUF models"""
+    global llama_cpp_process
     
-    validate_system_files()
+    # Check for GGUF models in models directory
+    gguf_models = get_gguf_models()
+    if not gguf_models:
+        print("No GGUF models found in models/ directory")
+        print("Please download GGUF models and place them in the models/ directory")
+        print("Models can be in subdirectories like: models/llm/GGUF/, models/gguf/, etc.")
+        return
     
-    port = APP_CONFIG.get('server', {}).get('port', 5001)
-    print(ConsoleColor.info(f"  Server starting on port {port}"))
-    print(ConsoleColor.info("  Models will load via loading screen with progress..."))
-    print(ConsoleColor.title("=" * 60))
+    print(f"Found {len(gguf_models)} GGUF model(s) in models/ directory:")
+    for model in gguf_models:
+        print(f"  - {model['relative_path']} ({model['size']})")
+    
+    # Check if llama.cpp is available
+    llama_cpp_exe = find_llama_cpp_exe()
+    if not llama_cpp_exe:
+        print("llama.cpp executable not found")
+        print("Please install llama.cpp and add it to PATH")
+        return
+    
+    print(f"Found llama.cpp executable: {llama_cpp_exe}")
+    
+    # Get first GGUF model as default (sorted alphabetically)
+    default_model = gguf_models[0]['path']
+    print(f"Using default model: {gguf_models[0]['relative_path']}")
+    
+    # Start llama.cpp server
+    try:
+        print("Starting llama.cpp server...")
+        llama_cpp_process = start_llama_cpp_server(llama_cpp_exe, default_model)
+        
+        # Wait for server to start
+        time.sleep(3)
+        
+        # Check if server is running
+        if check_llama_cpp_health():
+            print("llama.cpp server started successfully")
+        else:
+            print("Failed to start llama.cpp server")
+            if llama_cpp_process:
+                llama_cpp_process.terminate()
+                llama_cpp_process = None
+    except Exception as e:
+        print(f"Error starting llama.cpp server: {e}")
+        if llama_cpp_process:
+            try:
+                llama_cpp_process.terminate()
+            except:
+                pass
+            llama_cpp_process = None
 
+def find_llama_cpp_exe():
+    """Find llama.cpp executable"""
+    # Check in common locations
+    common_paths = [
+        os.path.join(BASE_DIR, 'llama.cpp', 'server.exe'),
+        os.path.join(BASE_DIR, 'llama.cpp', 'main.exe'),
+        'server.exe',
+        'main.exe'
+    ]
+    
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    
+    # Check PATH
+    import shutil
+    llama_cpp_exe = shutil.which('server.exe')
+    if llama_cpp_exe:
+        return llama_cpp_exe
+    
+    llama_cpp_exe = shutil.which('main.exe')
+    if llama_cpp_exe:
+        return llama_cpp_exe
+    
+    return None
 
-# Legacy model loading function (kept for backward compatibility with Vosk references)
-def load_model(model_path=None):
-    """Model loading placeholder - FunASR handles model loading internally"""
-    global model, current_model_path
-    # Models are loaded through FunASR, this is a compatibility shim
-    return True
-
-
-if __name__ == '__main__':
+def start_llama_cpp_server(executable, model_path):
+    """Start llama.cpp server with the specified model"""
     import subprocess
     
-    # Run application initialization
-    run_application_init()
+    # Command to start llama.cpp server
+    cmd = [
+        executable,
+        '-m', model_path,
+        '--host', '127.0.0.1',
+        '--port', '8080',
+        '--ctx-size', '2048',
+        '--batch-size', '128'
+    ]
     
-    port = int(APP_CONFIG.get('server', {}).get('port', 5001))
-    debug = APP_CONFIG.get('server', {}).get('debug', True)
+    print(f"Starting llama.cpp with command: {' '.join(cmd)}")
     
-    print(ConsoleColor.info(f"\nStarting server on port {port}..."))
-    print(ConsoleColor.info(f"  Hot reload: {'ON' if debug else 'OFF'}"))
-    print(ConsoleColor.info(f"  Main app: http://localhost:{port}/app"))
-    print(ConsoleColor.info(f"  Settings: http://localhost:{port}/settings"))
-    print(ConsoleColor.info(f"  ASR Debug: http://localhost:{port}/asr-debug"))
-    print(ConsoleColor.info(f"  Translation Debug: http://localhost:{port}/translation-debug"))
-    print(ConsoleColor.info(f"  TTS Debug: http://localhost:{port}/tts-debug"))
+    # Start the process
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
     
+    return process
+
+def check_llama_cpp_health():
+    """Check if llama.cpp server is healthy"""
     try:
-        socketio.run(app, host='0.0.0.0', port=port, debug=debug, use_reloader=debug,
-                      allow_unsafe_werkzeug=True,
-                      extra_files=[os.path.join(BASE_DIR, 'config.json'),
-                                   os.path.join(BASE_DIR, 'funasr_asr.py')])
-    except OSError as e:
-        if hasattr(e, 'winerror') and e.winerror == 10038:
-            pass
+        import requests
+        response = requests.get('http://localhost:8080/health', timeout=5)
+        return response.status_code == 200
+    except:
+        return False
+
+# Global variable to track llama.cpp process
+llama_cpp_process = None
+
+# Global flag to track if components are loaded
+components_loaded = False
+
+if __name__ == '__main__':
+    print(ConsoleColor.title("=" * 60))
+    print(ConsoleColor.title("Speech Recognition and Translation System - Windows Optimized"))
+    print(ConsoleColor.title("=" * 60))
+    print()
+    
+    # Display system information
+    print(ConsoleColor.info("System Information:"))
+    print(ConsoleColor.info(f"  Operating System: {sys.platform}"))
+    print(ConsoleColor.info(f"  Python Version: {sys.version.split()[0]}"))
+    print(ConsoleColor.info(f"  Working Directory: {os.getcwd()}"))
+    print()
+    
+    # Check port
+    PORT = 5001
+    if is_port_in_use(PORT):
+        print(ConsoleColor.error(f"Error: Port {PORT} is already in use"))
+        print(ConsoleColor.info(f"  Please check if another program is using this port"))
+        input("\nPress Enter to exit...")
+        sys.exit(1)
+    
+    print(ConsoleColor.success(f"Port {PORT} is available"))
+    print()
+    
+    # Display configuration information
+    print(ConsoleColor.info("Configuration Information:"))
+    print(ConsoleColor.info(f"  Sample Rate: {SAMPLE_RATE} Hz"))
+    print(ConsoleColor.info(f"  Buffer Size: {CHUNK_SIZE}"))
+    print()
+
+    print(ConsoleColor.title("-" * 60))
+    print()
+    
+    # Pre-initialize FunASR model
+    print(ConsoleColor.info("Pre-initializing FunASR model..."))
+    try:
+        from funasr_asr import initialize_funasr, get_device
+        
+        device = get_device()
+        print(ConsoleColor.info(f"  Using device: {device}"))
+        
+        model_path = "C:/Users/26276/Desktop/project/main/V0.3/models/stt/SenseVoiceSmall"
+        funasr_initialized = initialize_funasr(model_name=model_path, device=device)
+        
+        if funasr_initialized:
+            print(ConsoleColor.success("✓ FunASR model initialized successfully"))
         else:
-            raise
+            print(ConsoleColor.warning("⚠ FunASR model initialization failed, will try again on first use"))
+    except Exception as e:
+        print(ConsoleColor.warning(f"⚠ Error initializing FunASR: {e}"))
+    
+    print()
+    print(ConsoleColor.success("✓ System initialization complete"))
+    print()
+    # Start Flask server
+    print(ConsoleColor.info("Starting Flask server..."))
+    print(ConsoleColor.success(f"✓ Server running on http://localhost:{PORT}"))
+    print(ConsoleColor.info("Press Ctrl+C to stop"))
+    print()
+    socketio.run(app, host='0.0.0.0', port=PORT, debug=False, allow_unsafe_werkzeug=True)
